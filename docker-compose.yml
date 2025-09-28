@@ -1,0 +1,147 @@
+services:
+  # ============================================================================
+  # UNIFIED EVALUATION SYSTEM - Use one of these service profiles:
+  #
+  # 1. docker compose --profile baseline up --build      (baseline only)
+  # 2. docker compose --profile submission up --build    (submission only)
+  # 3. docker compose --profile default up --build       (configurable via env vars)
+  #
+  # The 'default' profile service can be controlled via environment variables:
+  # - INIT_MODE=CREATE (baseline) or INIT_MODE=LOAD (submission)
+  # - REPO_URL=<git-repo-url> (automatically download submission files)
+  # ============================================================================
+
+  # Baseline evaluation service
+  baseline:
+    container_name: eval-baseline
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eval-db:latest
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - ./out:/output
+    environment:
+      # --- Core DB settings (REQUIRED) ---
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+      # --- Initialization mode ---
+      - INIT_MODE=CREATE
+      - INIT_WAIT_TIMEOUT=${INIT_WAIT_TIMEOUT}
+      # --- DB table record count (used if INIT_MODE=CREATE) ---
+      - USERS_COUNT=${USERS_COUNT}
+      - DEVICES_COUNT=${DEVICES_COUNT}
+      - EVENTS_COUNT=${EVENTS_COUNT}
+      # --- SQL schema file location ---
+      - SCHEMA_SQL=${SCHEMA_SQL}
+      # --- Entrypoint and migration ---
+      - TIMEOUT=${TIMEOUT}
+      - MIG_LOG=${MIG_LOG}
+      # --- Query runner ---
+      - EXEC_PER_QUERY=${EXEC_PER_QUERY}
+      - EXEC_INTERVAL=${EXEC_INTERVAL}
+      - EXEC_INTERVAL_Q=${EXEC_INTERVAL_Q}
+      - EXEC_TIMEOUT=${EXEC_TIMEOUT}
+      - OUT_DIR=${OUT_DIR}
+      # --- Dumping and GCP upload ---
+      - DUMP_ENABLED=${DUMP_ENABLED}
+      - DUMP_LOCATION=${DUMP_LOCATION}
+      - GCP_BUCKET=${GCP_BUCKET}
+      - GCP_CREDENTIALS_JSON=${GCP_CREDENTIALS_JSON}
+      - DUMP_PATH=${DUMP_PATH}
+      - DUMP_READY_FILE=${DUMP_READY_FILE}
+      - BASELINE_MARKER=${BASELINE_MARKER}
+      # --- Repository URL (optional) ---
+      - REPO_URL=${REPO_URL}
+    restart: "no"
+    profiles: ["baseline"]
+
+  # Submission evaluation service
+  submission:
+    container_name: eval-submission
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eval-db:latest
+    ports:
+      - "${DB_PORT:-5433}:5432" # Different port to avoid conflicts if both run
+    volumes:
+      - ./out:/output
+    environment:
+      # --- Core DB settings (REQUIRED) ---
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+      # --- Baseline dump URL (REQUIRED) ---
+      - BASELINE_DUMP_URL=${BASELINE_DUMP_URL}
+      # --- Initialization mode ---
+      - INIT_MODE=LOAD
+      # --- Entrypoint and migration ---
+      - TIMEOUT=${TIMEOUT}
+      - MIG_LOG=${MIG_LOG}
+      # --- Query runner ---
+      - EXEC_PER_QUERY=${EXEC_PER_QUERY}
+      - EXEC_INTERVAL=${EXEC_INTERVAL}
+      - EXEC_INTERVAL_Q=${EXEC_INTERVAL_Q}
+      - EXEC_TIMEOUT=${EXEC_TIMEOUT}
+      - OUT_DIR=${OUT_DIR}
+      - QUERIES_DIR=${QUERIES_DIR}
+      # --- Dumping settings ---
+      - DUMP_ENABLED=${DUMP_ENABLED}
+      - DUMP_LOCATION=${DUMP_LOCATION}
+      - DUMP_PATH=${DUMP_PATH}
+      - DUMP_READY_FILE=${DUMP_READY_FILE}
+      - SUBMISSION_MARKER=${SUBMISSION_MARKER}
+      # --- Repository URL (REQUIRED for submission) ---
+      - REPO_URL=${REPO_URL}
+    restart: "no"
+    profiles: ["submission"]
+
+  # Combined service that can be switched via environment
+  eval:
+    container_name: eval-db
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eval-db:latest
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - ./out:/output
+    environment:
+      # --- Core DB settings (REQUIRED) ---
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+      # --- Mode selection (REQUIRED: CREATE for baseline, LOAD for submission) ---
+      - INIT_MODE=${INIT_MODE}
+      - INIT_WAIT_TIMEOUT=${INIT_WAIT_TIMEOUT}
+      # --- Baseline-specific settings (used when INIT_MODE=CREATE) ---
+      - USERS_COUNT=${USERS_COUNT}
+      - DEVICES_COUNT=${DEVICES_COUNT}
+      - EVENTS_COUNT=${EVENTS_COUNT}
+      - SCHEMA_SQL=${SCHEMA_SQL}
+      - BASELINE_MARKER=${BASELINE_MARKER}
+      # --- Submission-specific settings (used when INIT_MODE=LOAD) ---
+      - BASELINE_DUMP_URL=${BASELINE_DUMP_URL}
+      - SUBMISSION_MARKER=${SUBMISSION_MARKER}
+      - QUERIES_DIR=${QUERIES_DIR}
+      - REPO_URL=${REPO_URL}
+      # --- Common settings ---
+      - TIMEOUT=${TIMEOUT}
+      - MIG_LOG=${MIG_LOG}
+      - EXEC_PER_QUERY=${EXEC_PER_QUERY}
+      - EXEC_INTERVAL=${EXEC_INTERVAL}
+      - EXEC_INTERVAL_Q=${EXEC_INTERVAL_Q}
+      - EXEC_TIMEOUT=${EXEC_TIMEOUT}
+      - OUT_DIR=${OUT_DIR}
+      - DUMP_ENABLED=${DUMP_ENABLED}
+      - DUMP_LOCATION=${DUMP_LOCATION}
+      - DUMP_PATH=${DUMP_PATH}
+      - DUMP_READY_FILE=${DUMP_READY_FILE}
+      - GCP_BUCKET=${GCP_BUCKET}
+      - GCP_CREDENTIALS_JSON=${GCP_CREDENTIALS_JSON}
+    restart: "no"
+    profiles: ["default"]
