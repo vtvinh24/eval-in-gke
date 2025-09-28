@@ -1,0 +1,13 @@
+# k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eval-sa
+  namespace: eval-system
+  annotations:
+    iam.gke.io/gcp-service-account: cloudrun-eval-sa@hackathon-demo-473203.iam.gserviceaccount.com

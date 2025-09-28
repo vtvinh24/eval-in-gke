@@ -1,0 +1,41 @@
+# Database Evaluation System API
+# Base URL: https://eval-api-gateway-<hash>-uc.a.run.app (Cloud Run service)
+# Deployed on Google Cloud Run in us-central1 region
+
+# GET /health
+# Health check endpoint
+Response:
+  status: "healthy"
+  timestamp: string  # ISO 8601 timestamp
+
+# POST /api/v1/jobs
+# Create a new evaluation job
+Request:
+  type: "baseline" # | "submission"  # Required
+  repo_url?: string               # Required for submission jobs
+  config:
+    users_count?: number         # For baseline jobs (default: 50000)
+    devices_count?: number       # For baseline jobs (default: 50000)  
+    events_count?: number        # For baseline jobs (default: 1000000)
+    timeout?: number            # Execution timeout in milliseconds
+    exec_per_query?: number     # Number of executions per query
+
+Response:
+  job_id: string                 # Format: eval-{type}-YYYYMMDD-HHMMSS-{uuid8}
+  status: "queued"              # Always "queued" for new jobs
+  created_at: string            # ISO 8601 timestamp
+
+# GET /api/v1/jobs/{job_id}/status  
+# Check job status
+Response:
+  job_id: string
+  status: "queued" # | "running" | "completed" | "failed"
+  created_at: string            # ISO 8601 timestamp
+  completed_at?: string         # ISO 8601 timestamp (only when completed)
+
+# GET /api/v1/jobs/{job_id}/results
+# Retrieve job results (available when status is "completed")
+Response:
+  job_id: string
+  summary: object               # Status and note about results
+  gcp_output_path: string       # GCS bucket path: gs://{bucket}/{job_id}/

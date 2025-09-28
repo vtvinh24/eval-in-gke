@@ -12,6 +12,7 @@ RUN --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists \
      gnupg \
      wget \
      git \
+     uuid-runtime \
   && mkdir -p /usr/share/keyrings \
   && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
   && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
@@ -41,5 +42,7 @@ ENV SCHEMA_SQL=/sql-templates/init-db.sql
 ENV DUMP_ENABLED=true
 ENV DUMP_LOCATION=local
 ENV REPO_URL=""
+ENV JOB_ID=""
+ENV API_CALLBACK_URL=""
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

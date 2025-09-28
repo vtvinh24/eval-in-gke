@@ -1,0 +1,44 @@
+# k8s/job-submission-template.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eval-submission-{JOB_ID}
+  namespace: eval-system
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      serviceAccountName: eval-sa
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: us-docker.pkg.dev/hackathon-demo-473203/eval/eval-db:latest
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "800m"
+          env:
+            - name: INIT_MODE
+              value: "LOAD"
+            - name: REPO_URL
+              value: "{REPO_URL}"
+            - name: BASELINE_DUMP_URL
+              value: "https://storage.googleapis.com/eval-artifacts-hackathon-demo-473203/db_dump.sql"
+            - name: QUERIES_DIR
+              value: "/submission"
+            - name: JOB_ID
+              value: "{JOB_ID}"
+          envFrom:
+            - configMapRef:
+                name: eval-config
+            - secretRef:
+                name: eval-secrets
+          volumeMounts:
+            - name: output-storage
+              mountPath: /output
+      volumes:
+        - name: output-storage
+          emptyDir: {}

@@ -21,6 +21,14 @@ JSON_SUM="$OUT_DIR/summary.json"
 jq -n '{}' > "$JSON_SUM" || true
 chmod 0666 "$JSON_SUM" || true
 
+# Import job status update function if available
+if declare -F update_job_status >/dev/null; then
+  echo "Job status updates enabled"
+else
+  # Define dummy function if not available
+  update_job_status() { echo "Status: $1, Progress: $2"; }
+fi
+
 start_all=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Helper: run a SQL file with timeout (ms). Uses coreutils timeout which accepts seconds; convert ms->s with fraction
@@ -78,6 +86,10 @@ else
   QLIST=("${QFILES[@]}")
 fi
 
+# Track query progress
+total_queries=${#QLIST[@]}
+completed_queries=0
+
 for q in "${QLIST[@]}"; do
   # allow q to be 'Q1' or 'Q1.sql'
   qname="$q"
@@ -87,6 +99,10 @@ for q in "${QLIST[@]}"; do
     sqlname="$qname"
     qname="${qname%.sql}"
   fi
+  
+  # Calculate progress (50% base + 40% for queries + 10% for dump)
+  current_progress=$((50 + (40 * completed_queries / total_queries)))
+  update_job_status "running" "${current_progress}%" null
 
   sqlpath="/source/$sqlname"
   if [ ! -f "$sqlpath" ]; then
@@ -194,6 +210,11 @@ for q in "${QLIST[@]}"; do
   # Compute status by checking runs
   qstatus=$(jq -r --arg q "$qname" '.queries[$q].runs[].status' "$JSON_SUM" | awk 'BEGIN{ok=0}{if($0=="success") ok=1}END{print ok?"success":"failed"}')
   jq --arg q "$qname" --arg status "$qstatus" '.queries[$q].status=$status' "$JSON_SUM" > "$JSON_SUM.tmp" && mv "$JSON_SUM.tmp" "$JSON_SUM"
+
+  # Update progress
+  completed_queries=$((completed_queries + 1))
+  current_progress=$((50 + (40 * completed_queries / total_queries)))
+  update_job_status "running" "${current_progress}%" null
 
   # wait between queries
   echo "...waiting ${EXEC_INTERVAL_Q}ms before next query"

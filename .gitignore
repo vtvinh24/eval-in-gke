@@ -1,3 +1,4 @@
 *.log
 *.env
 /out
+k8s/config.yml

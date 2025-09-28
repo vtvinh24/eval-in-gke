@@ -1,9 +1,69 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Trap errors and update job status
+trap 'update_job_status "failed" "error" "\"Script failed at line $LINENO\""' ERR
+
 # ============================================================================
 # VALIDATION: Exit immediately if required variables are missing/invalid
 # ============================================================================
+
+echo "=== Initializing Job Metadata ==="
+
+# Generate unique job ID if not provided
+if [[ -z "${JOB_ID:-}" ]]; then
+  export JOB_ID="job-$(date +%Y%m%d-%H%M%S)-$(uuidgen | cut -d- -f1)"
+  echo "Generated JOB_ID: $JOB_ID"
+else
+  echo "Using provided JOB_ID: $JOB_ID"
+fi
+
+# Create output directory structure
+mkdir -p "${OUT_DIR:-/output}/logs"
+mkdir -p "${OUT_DIR:-/output}/results" 
+mkdir -p "${OUT_DIR:-/output}/dumps"
+
+# Create job metadata file
+cat > "${OUT_DIR:-/output}/job_metadata.json" << EOF
+{
+  "job_id": "$JOB_ID",
+  "job_type": "${INIT_MODE:-unknown}",
+  "repo_url": "${REPO_URL:-null}",
+  "started_at": "$(date -Iseconds)",
+  "node_name": "${HOSTNAME:-unknown}",
+  "status": "initializing",
+  "progress": "0%"
+}
+EOF
+
+# Function to update job status
+update_job_status() {
+  local status="$1"
+  local progress="${2:-0%}"
+  local error="${3:-null}"
+  
+  cat > "${OUT_DIR:-/output}/job_metadata.json" << EOF
+{
+  "job_id": "$JOB_ID",
+  "job_type": "${INIT_MODE:-unknown}",
+  "repo_url": "${REPO_URL:-null}",
+  "started_at": "$(cat "${OUT_DIR:-/output}/job_metadata.json" 2>/dev/null | jq -r '.started_at // "unknown"')",
+  "updated_at": "$(date -Iseconds)",
+  "node_name": "${HOSTNAME:-unknown}",
+  "status": "$status",
+  "progress": "$progress",
+  "error": $error
+}
+EOF
+
+  # Optional: Send callback to API if URL provided
+  if [[ -n "${API_CALLBACK_URL:-}" ]]; then
+    curl -X POST "$API_CALLBACK_URL/jobs/$JOB_ID/status" \
+      -H "Content-Type: application/json" \
+      -d @"${OUT_DIR:-/output}/job_metadata.json" \
+      --max-time 10 --silent || true
+  fi
+}
 
 echo "=== Validating Environment Variables ==="
 
@@ -272,12 +332,14 @@ if [ "$INIT_MODE" = "LOAD" ]; then
   fi
   
   echo "Database loaded successfully. Starting query evaluation..."
+  update_job_status "running" "50%" null
   
   # Override the source directory to use submission queries
   export QUERIES_DIR=/submission
 else
   # Baseline mode: run database initialization manually
   echo "Postgres ready. Initializing baseline database..."
+  update_job_status "running" "20%" null
   
   # Set environment variables for the init script (all already validated)
   export INIT_MODE
@@ -290,6 +352,7 @@ else
   bash /sql-templates/init-db.sh
   
   echo "Database initialization complete. Starting query evaluation..."
+  update_job_status "running" "50%" null
   
   # Use baseline queries directory
   export QUERIES_DIR=/source
@@ -350,6 +413,9 @@ fi
 # Create completion marker
 touch "$COMPLETION_MARKER"
 chmod 0666 "$COMPLETION_MARKER" 2>/dev/null || true
+
+# Update job status to completed
+update_job_status "completed" "100%" null
 
 if [ "$INIT_MODE" = "CREATE" ]; then
   echo "Baseline evaluation completed. Will terminate postgres after ${TIMEOUT}ms."

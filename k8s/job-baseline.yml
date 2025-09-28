@@ -1,0 +1,46 @@
+# k8s/job-baseline-template.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eval-baseline-{JOB_ID}
+  namespace: eval-system
+spec:
+  ttlSecondsAfterFinished: 3600 # Clean up after 1 hour
+  template:
+    spec:
+      serviceAccountName: eval-sa
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: us-docker.pkg.dev/hackathon-demo-473203/eval/eval-db:latest
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "800m"
+          env:
+            - name: INIT_MODE
+              value: "CREATE"
+            - name: USERS_COUNT
+              value: "{USERS_COUNT}"
+            - name: DEVICES_COUNT
+              value: "{DEVICES_COUNT}"
+            - name: EVENTS_COUNT
+              value: "{EVENTS_COUNT}"
+            - name: QUERIES_DIR
+              value: "/source"
+            - name: JOB_ID
+              value: "{JOB_ID}"
+          envFrom:
+            - configMapRef:
+                name: eval-config
+            - secretRef:
+                name: eval-secrets
+          volumeMounts:
+            - name: output-storage
+              mountPath: /output
+      volumes:
+        - name: output-storage
+          emptyDir: {}
