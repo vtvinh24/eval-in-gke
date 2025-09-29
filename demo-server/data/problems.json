@@ -1,0 +1,52 @@
+{
+  "db-query-optimization": {
+    "id": "db-query-optimization",
+    "title": "Database Query Optimization Challenge",
+    "description": "Large-scale analytics and OLTP systems often encounter SQL queries that become prohibitively slow as data volume grows (100M+ rows). This challenge simulates a real-world scenario where you must optimize a slow SQL workload to run efficiently on a single machine.",
+    "domain": "Databases, query optimization, systems engineering, data engineering",
+    "constraints": {
+      "database": "PostgreSQL 14",
+      "dataset": "events table ~100M rows; other tables up to ~120M rows",
+      "hardware": "8 vCPU, 32GB RAM, 1TB SSD",
+      "migrationTime": "≤30 minutes",
+      "queryTimeout": "4s target, 10s max",
+      "auxiliaryStorage": "≤30% extra over base DB"
+    },
+    "scoringWeights": {
+      "correctness": 50,
+      "latency": 30,
+      "concurrency": 10,
+      "storageEfficiency": 10
+    },
+    "submissionDockerImage": "gcr.io/hackathon-demo-473203/db-eval:latest",
+    "submissionDockerParams": {
+      "resources": {
+        "requests": {
+          "memory": "4Gi",
+          "cpu": "2000m"
+        },
+        "limits": {
+          "memory": "8Gi",
+          "cpu": "4000m"
+        }
+      },
+      "timeoutSeconds": 1800
+    },
+    "baselineDockerImage": "gcr.io/hackathon-demo-473203/db-baseline:latest",
+    "baselineDockerParams": {
+      "resources": {
+        "requests": {
+          "memory": "4Gi",
+          "cpu": "2000m"
+        },
+        "limits": {
+          "memory": "8Gi",
+          "cpu": "4000m"
+        }
+      },
+      "timeoutSeconds": 1800
+    },
+    "createdAt": "2025-09-29T00:00:00Z",
+    "createdBy": "host"
+  }
+}

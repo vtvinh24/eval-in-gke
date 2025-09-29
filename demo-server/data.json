@@ -1,6 +1,12 @@
 {
   "users": [
     {
+      "id": "host",
+      "name": "Contest Host",
+      "role": "host",
+      "password": "host123"
+    },
+    {
       "id": "judge1",
       "name": "Judge Alice",
       "role": "judge",
@@ -34,5 +40,297 @@
   "submissions": [],
   "evaluations": [],
   "baselineMetrics": null,
-  "jobStatuses": {}
+  "jobStatuses": {},
+  "problems": {
+    "db-query-optimization": {
+      "id": "db-query-optimization",
+      "title": "Database Query Optimization Challenge",
+      "description": "Large-scale analytics and OLTP systems often encounter SQL queries that become prohibitively slow as data volume grows (100M+ rows).",
+      "domain": "Databases, query optimization, systems engineering, data engineering",
+      "constraints": {
+        "database": "PostgreSQL 14",
+        "dataset": "events table ~100M rows; other tables up to ~120M rows",
+        "hardware": "8 vCPU, 32GB RAM, 1TB SSD",
+        "migrationTime": "≤30 minutes",
+        "queryTimeout": "4s target, 10s max",
+        "auxiliaryStorage": "≤30% extra over base DB"
+      },
+      "scoringWeights": {
+        "correctness": 50,
+        "latency": 30,
+        "concurrency": 10,
+        "storageEfficiency": 10
+      },
+      "submissions": [],
+      "baselineMetrics": {
+        "migration": {
+          "status": "missing",
+          "time": "0"
+        },
+        "queries": {
+          "Q10": {
+            "status": "empty"
+          },
+          "Q1": {
+            "status": "success",
+            "runs": [
+              {
+                "run": 1,
+                "status": "success",
+                "time": 831.099,
+                "rows": 10,
+                "bytes": 130
+              },
+              {
+                "run": 2,
+                "status": "success",
+                "time": 676.262,
+                "rows": 10,
+                "bytes": 130
+              },
+              {
+                "run": 3,
+                "status": "success",
+                "time": 536.301,
+                "rows": 10,
+                "bytes": 130
+              },
+              {
+                "run": 4,
+                "status": "success",
+                "time": 736.001,
+                "rows": 10,
+                "bytes": 130
+              },
+              {
+                "run": 5,
+                "status": "success",
+                "time": 527.477,
+                "rows": 10,
+                "bytes": 130
+              }
+            ],
+            "avg_time": 661.4279999999999
+          },
+          "Q2": {
+            "status": "success",
+            "runs": [
+              {
+                "run": 1,
+                "status": "success",
+                "time": 134.853,
+                "rows": 5,
+                "bytes": 33
+              },
+              {
+                "run": 2,
+                "status": "success",
+                "time": 127.533,
+                "rows": 5,
+                "bytes": 33
+              },
+              {
+                "run": 3,
+                "status": "success",
+                "time": 132.325,
+                "rows": 5,
+                "bytes": 33
+              },
+              {
+                "run": 4,
+                "status": "success",
+                "time": 128.537,
+                "rows": 5,
+                "bytes": 33
+              },
+              {
+                "run": 5,
+                "status": "success",
+                "time": 130.628,
+                "rows": 5,
+                "bytes": 33
+              }
+            ],
+            "avg_time": 130.77519999999998
+          },
+          "Q3": {
+            "status": "success",
+            "runs": [
+              {
+                "run": 1,
+                "status": "success",
+                "time": 107.333,
+                "rows": 100,
+                "bytes": 3460
+              },
+              {
+                "run": 2,
+                "status": "success",
+                "time": 107.834,
+                "rows": 100,
+                "bytes": 3460
+              },
+              {
+                "run": 3,
+                "status": "success",
+                "time": 132.801,
+                "rows": 100,
+                "bytes": 3460
+              },
+              {
+                "run": 4,
+                "status": "success",
+                "time": 107.186,
+                "rows": 100,
+                "bytes": 3460
+              },
+              {
+                "run": 5,
+                "status": "success",
+                "time": 109.099,
+                "rows": 100,
+                "bytes": 3460
+              }
+            ],
+            "avg_time": 112.85060000000001
+          },
+          "Q4": {
+            "status": "success",
+            "runs": [
+              {
+                "run": 1,
+                "status": "success",
+                "time": 129.219,
+                "rows": 10,
+                "bytes": 280
+              },
+              {
+                "run": 2,
+                "status": "success",
+                "time": 130.969,
+                "rows": 10,
+                "bytes": 280
+              },
+              {
+                "run": 3,
+                "status": "success",
+                "time": 128.998,
+                "rows": 10,
+                "bytes": 280
+              },
+              {
+                "run": 4,
+                "status": "success",
+                "time": 129.248,
+                "rows": 10,
+                "bytes": 280
+              },
+              {
+                "run": 5,
+                "status": "success",
+                "time": 129.809,
+                "rows": 10,
+                "bytes": 280
+              }
+            ],
+            "avg_time": 129.6486
+          },
+          "Q5": {
+            "status": "success",
+            "runs": [
+              {
+                "run": 1,
+                "status": "success",
+                "time": 385.619,
+                "rows": 31,
+                "bytes": 496
+              },
+              {
+                "run": 2,
+                "status": "success",
+                "time": 392.507,
+                "rows": 31,
+                "bytes": 496
+              },
+              {
+                "run": 3,
+                "status": "success",
+                "time": 387.35,
+                "rows": 31,
+                "bytes": 496
+              },
+              {
+                "run": 4,
+                "status": "success",
+                "time": 382.647,
+                "rows": 31,
+                "bytes": 496
+              },
+              {
+                "run": 5,
+                "status": "success",
+                "time": 385.989,
+                "rows": 31,
+                "bytes": 496
+              }
+            ],
+            "avg_time": 386.8224
+          },
+          "Q6": {
+            "status": "success",
+            "runs": [
+              {
+                "run": 1,
+                "status": "success",
+                "time": 451.62,
+                "rows": 100,
+                "bytes": 3568
+              },
+              {
+                "run": 2,
+                "status": "success",
+                "time": 451.907,
+                "rows": 100,
+                "bytes": 3568
+              },
+              {
+                "run": 3,
+                "status": "success",
+                "time": 463.202,
+                "rows": 100,
+                "bytes": 3568
+              },
+              {
+                "run": 4,
+                "status": "success",
+                "time": 449.885,
+                "rows": 100,
+                "bytes": 3568
+              },
+              {
+                "run": 5,
+                "status": "success",
+                "time": 441.4,
+                "rows": 100,
+                "bytes": 3568
+              }
+            ],
+            "avg_time": 451.6028
+          },
+          "Q7": {
+            "status": "empty"
+          },
+          "Q8": {
+            "status": "empty"
+          },
+          "Q9": {
+            "status": "empty"
+          }
+        },
+        "started_at": "2025-09-29T04:07:34Z",
+        "finished_at": "2025-09-29T04:08:22Z"
+      },
+      "jobStatuses": {}
+    }
+  }
 }

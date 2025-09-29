@@ -117,12 +117,42 @@ All data is stored in `data.json` for easy inspection and modification. The file
 
 ## Integration with GKE/Cloud Run
 
-The server integrates with the evaluation system by:
+The server integrates with the evaluation system using multiple approaches for robustness:
 
-1. **Fetching baseline metrics** on startup from Cloud Run API
-2. **Submitting evaluation jobs** when repositories are submitted
-3. **Monitoring job status** and downloading results automatically
-4. **Comparing submission metrics** to baseline for auto-scoring
+### Metrics Fetching
+
+1. **Baseline Metrics** (Primary approach):
+
+   - Uses `get-latest-baseline.sh` script to fetch latest baseline dump from GCS
+   - Automatically downloads corresponding `summary.json` with performance metrics
+   - Falls back to Cloud Run API if script-based approach fails
+
+2. **Submission Results** (Hybrid approach):
+   - First checks GCS buckets directly for completed job results
+   - Falls back to Cloud Run API for status monitoring if results not found
+   - Reduces API load and improves response time
+
+### Job Creation
+
+1. **Submission Jobs**:
+
+   - Primary: Uses `create-job.sh` script for direct Kubernetes job creation
+   - Fallback: Cloud Run API for job submission
+   - Provides better integration with existing infrastructure scripts
+
+2. **Baseline Jobs**:
+   - Script-based creation when generating new baselines
+   - API fallback ensures compatibility
+
+### Configuration
+
+Key environment variables for the updated approach:
+
+- `GET_LATEST_BASELINE_SCRIPT`: Path to baseline fetching script
+- `CREATE_JOB_SCRIPT`: Path to job creation script
+- `BASELINE_BUCKET`: GCS bucket for baseline artifacts
+- `SUBMISSION_RESULTS_BUCKET`: GCS bucket for submission results
+- `GCP_CREDENTIALS_JSON_PATH`: Service account for GCS access
 
 ## Monitoring
 

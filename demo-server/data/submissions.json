@@ -1,0 +1,372 @@
+{
+  "sub_1727596800000": {
+    "id": "sub_1727596800000",
+    "teamId": "team1",
+    "teamName": "Team Alpha",
+    "problemId": "db-query-optimization",
+    "repoUrl": "https://github.com/vtvinh24/db-submission",
+    "jobId": "eval-job-team1-db-1727596800",
+    "status": "evaluated",
+    "submittedAt": "2025-09-29T08:00:00Z",
+    "startedAt": "2025-09-29T08:01:00Z",
+    "completedAt": "2025-09-29T08:15:30Z",
+    "autoScore": 87,
+    "averageJudgeScore": 53.35,
+    "totalScore": 84.75,
+    "outputBucket": "gs://eval-artifacts-hackathon-demo-473203/submissions/sub_1727596800000",
+    "outputFiles": [
+      "summary.json",
+      "logs/Q1-run1.log",
+      "logs/Q1-run2.log",
+      "logs/Q1-run3.log",
+      "logs/Q1-run4.log",
+      "logs/Q1-run5.log",
+      "logs/Q2-run1.log",
+      "logs/Q2-run2.log",
+      "logs/Q2-run3.log",
+      "logs/Q2-run4.log",
+      "logs/Q2-run5.log",
+      "logs/Q3-run1.log",
+      "logs/Q3-run2.log",
+      "logs/Q3-run3.log",
+      "logs/Q3-run4.log",
+      "logs/Q3-run5.log",
+      "logs/Q4-run1.log",
+      "logs/Q4-run2.log",
+      "logs/Q4-run3.log",
+      "logs/Q4-run4.log",
+      "logs/Q4-run5.log",
+      "logs/Q5-run1.log",
+      "logs/Q5-run2.log",
+      "logs/Q5-run3.log",
+      "logs/Q5-run4.log",
+      "logs/Q5-run5.log",
+      "logs/Q6-run1.log",
+      "logs/Q6-run2.log",
+      "logs/Q6-run3.log",
+      "logs/Q6-run4.log",
+      "logs/Q6-run5.log",
+      "logs/migration.log",
+      "metrics/performance.json",
+      "metrics/resource_usage.json"
+    ],
+    "metrics": {
+      "migration": {
+        "status": "success",
+        "time": 0,
+        "size_before": "12.5GB",
+        "size_after": "13.1GB",
+        "overhead_percentage": 4.8
+      },
+      "queries": {
+        "Q1": {
+          "status": "success",
+          "runs": [
+            {
+              "run": 1,
+              "status": "success",
+              "time": 596.616,
+              "rows": 10,
+              "bytes": 130
+            },
+            {
+              "run": 2,
+              "status": "success",
+              "time": 628.235,
+              "rows": 10,
+              "bytes": 130
+            },
+            {
+              "run": 3,
+              "status": "success",
+              "time": 515.818,
+              "rows": 10,
+              "bytes": 130
+            },
+            {
+              "run": 4,
+              "status": "success",
+              "time": 478.907,
+              "rows": 10,
+              "bytes": 130
+            },
+            {
+              "run": 5,
+              "status": "success",
+              "time": 493.325,
+              "rows": 10,
+              "bytes": 130
+            }
+          ],
+          "avg_time": 542.58,
+          "correctness_check": true,
+          "performance_score": 22
+        },
+        "Q2": {
+          "status": "success",
+          "runs": [
+            {
+              "run": 1,
+              "status": "success",
+              "time": 125.665,
+              "rows": 5,
+              "bytes": 33
+            },
+            {
+              "run": 2,
+              "status": "success",
+              "time": 118.975,
+              "rows": 5,
+              "bytes": 33
+            },
+            {
+              "run": 3,
+              "status": "success",
+              "time": 118.552,
+              "rows": 5,
+              "bytes": 33
+            },
+            {
+              "run": 4,
+              "status": "success",
+              "time": 135.017,
+              "rows": 5,
+              "bytes": 33
+            },
+            {
+              "run": 5,
+              "status": "success",
+              "time": 127.289,
+              "rows": 5,
+              "bytes": 33
+            }
+          ],
+          "avg_time": 125.1,
+          "correctness_check": true,
+          "performance_score": 21.1
+        },
+        "Q3": {
+          "status": "success",
+          "runs": [
+            {
+              "run": 1,
+              "status": "success",
+              "time": 101.017,
+              "rows": 100,
+              "bytes": 3458
+            },
+            {
+              "run": 2,
+              "status": "success",
+              "time": 100.332,
+              "rows": 100,
+              "bytes": 3458
+            },
+            {
+              "run": 3,
+              "status": "success",
+              "time": 126.586,
+              "rows": 100,
+              "bytes": 3458
+            },
+            {
+              "run": 4,
+              "status": "success",
+              "time": 102.768,
+              "rows": 100,
+              "bytes": 3458
+            },
+            {
+              "run": 5,
+              "status": "success",
+              "time": 96.514,
+              "rows": 100,
+              "bytes": 3458
+            }
+          ],
+          "avg_time": 105.44,
+          "correctness_check": true,
+          "performance_score": 21.5
+        },
+        "Q4": {
+          "status": "success",
+          "runs": [
+            {
+              "run": 1,
+              "status": "success",
+              "time": 132.458,
+              "rows": 10,
+              "bytes": 280
+            },
+            {
+              "run": 2,
+              "status": "success",
+              "time": 123.459,
+              "rows": 10,
+              "bytes": 280
+            },
+            {
+              "run": 3,
+              "status": "success",
+              "time": 122.969,
+              "rows": 10,
+              "bytes": 280
+            },
+            {
+              "run": 4,
+              "status": "success",
+              "time": 120.978,
+              "rows": 10,
+              "bytes": 280
+            },
+            {
+              "run": 5,
+              "status": "success",
+              "time": 110.82,
+              "rows": 10,
+              "bytes": 280
+            }
+          ],
+          "avg_time": 122.14,
+          "correctness_check": true,
+          "performance_score": 21.3
+        },
+        "Q5": {
+          "status": "success",
+          "runs": [
+            {
+              "run": 1,
+              "status": "success",
+              "time": 344.617,
+              "rows": 31,
+              "bytes": 496
+            },
+            {
+              "run": 2,
+              "status": "success",
+              "time": 336.726,
+              "rows": 31,
+              "bytes": 496
+            },
+            {
+              "run": 3,
+              "status": "success",
+              "time": 343.754,
+              "rows": 31,
+              "bytes": 496
+            },
+            {
+              "run": 4,
+              "status": "success",
+              "time": 353.909,
+              "rows": 31,
+              "bytes": 496
+            },
+            {
+              "run": 5,
+              "status": "success",
+              "time": 340.149,
+              "rows": 31,
+              "bytes": 496
+            }
+          ],
+          "avg_time": 343.83,
+          "correctness_check": true,
+          "performance_score": 22.5
+        },
+        "Q6": {
+          "status": "success",
+          "runs": [
+            {
+              "run": 1,
+              "status": "success",
+              "time": 353.892,
+              "rows": 100,
+              "bytes": 3569
+            },
+            {
+              "run": 2,
+              "status": "success",
+              "time": 347.194,
+              "rows": 100,
+              "bytes": 3569
+            },
+            {
+              "run": 3,
+              "status": "success",
+              "time": 328.898,
+              "rows": 100,
+              "bytes": 3569
+            },
+            {
+              "run": 4,
+              "status": "success",
+              "time": 346.1,
+              "rows": 100,
+              "bytes": 3569
+            },
+            {
+              "run": 5,
+              "status": "success",
+              "time": 337.549,
+              "rows": 100,
+              "bytes": 3569
+            }
+          ],
+          "avg_time": 342.73,
+          "correctness_check": true,
+          "performance_score": 23.8
+        },
+        "Q7": {
+          "status": "empty"
+        },
+        "Q8": {
+          "status": "empty"
+        },
+        "Q9": {
+          "status": "empty"
+        },
+        "Q10": {
+          "status": "empty"
+        }
+      },
+      "started_at": "2025-09-29T08:01:00Z",
+      "finished_at": "2025-09-29T08:15:30Z",
+      "totalQueries": 6,
+      "successfulQueries": 6,
+      "failedQueries": 0
+    },
+    "judgeScores": [
+      {
+        "judgeId": "judge2",
+        "judgeName": "Judge Bob",
+        "correctness": 40,
+        "performance": 22,
+        "codeQuality": 18,
+        "documentation": 20,
+        "totalScore": 80,
+        "comments": "Solid implementation with good performance improvements. Code is clean and well-structured. Good documentation practices.",
+        "submittedAt": "2025-09-29T11:15:00Z"
+      },
+      {
+        "judgeId": "judge1",
+        "judgeName": "Judge Alice",
+        "scores": {
+          "correctness": 40,
+          "performance": 30,
+          "codeQuality": 20,
+          "documentation": 7
+        },
+        "weights": {
+          "correctness": 40,
+          "performance": 30,
+          "codeQuality": 20,
+          "documentation": 10
+        },
+        "totalScore": 26.7,
+        "comments": "",
+        "submittedAt": "2025-09-29T13:35:11.580Z"
+      }
+    ]
+  }
+}

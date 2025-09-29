@@ -1,0 +1,270 @@
+{
+  "db-query-optimization": {
+    "migration": {
+      "status": "success",
+      "time": "0"
+    },
+    "queries": {
+      "Q1": {
+        "status": "success",
+        "runs": [
+          {
+            "run": 1,
+            "status": "success",
+            "time": 831.099,
+            "rows": 10,
+            "bytes": 130
+          },
+          {
+            "run": 2,
+            "status": "success",
+            "time": 676.262,
+            "rows": 10,
+            "bytes": 130
+          },
+          {
+            "run": 3,
+            "status": "success",
+            "time": 536.301,
+            "rows": 10,
+            "bytes": 130
+          },
+          {
+            "run": 4,
+            "status": "success",
+            "time": 736.001,
+            "rows": 10,
+            "bytes": 130
+          },
+          {
+            "run": 5,
+            "status": "success",
+            "time": 527.477,
+            "rows": 10,
+            "bytes": 130
+          }
+        ],
+        "avg_time": 661.428
+      },
+      "Q2": {
+        "status": "success",
+        "runs": [
+          {
+            "run": 1,
+            "status": "success",
+            "time": 134.853,
+            "rows": 5,
+            "bytes": 33
+          },
+          {
+            "run": 2,
+            "status": "success",
+            "time": 127.533,
+            "rows": 5,
+            "bytes": 33
+          },
+          {
+            "run": 3,
+            "status": "success",
+            "time": 132.325,
+            "rows": 5,
+            "bytes": 33
+          },
+          {
+            "run": 4,
+            "status": "success",
+            "time": 128.537,
+            "rows": 5,
+            "bytes": 33
+          },
+          {
+            "run": 5,
+            "status": "success",
+            "time": 130.628,
+            "rows": 5,
+            "bytes": 33
+          }
+        ],
+        "avg_time": 130.775
+      },
+      "Q3": {
+        "status": "success",
+        "runs": [
+          {
+            "run": 1,
+            "status": "success",
+            "time": 107.333,
+            "rows": 100,
+            "bytes": 3460
+          },
+          {
+            "run": 2,
+            "status": "success",
+            "time": 107.834,
+            "rows": 100,
+            "bytes": 3460
+          },
+          {
+            "run": 3,
+            "status": "success",
+            "time": 132.801,
+            "rows": 100,
+            "bytes": 3460
+          },
+          {
+            "run": 4,
+            "status": "success",
+            "time": 107.186,
+            "rows": 100,
+            "bytes": 3460
+          },
+          {
+            "run": 5,
+            "status": "success",
+            "time": 109.099,
+            "rows": 100,
+            "bytes": 3460
+          }
+        ],
+        "avg_time": 112.851
+      },
+      "Q4": {
+        "status": "success",
+        "runs": [
+          {
+            "run": 1,
+            "status": "success",
+            "time": 129.219,
+            "rows": 10,
+            "bytes": 280
+          },
+          {
+            "run": 2,
+            "status": "success",
+            "time": 130.969,
+            "rows": 10,
+            "bytes": 280
+          },
+          {
+            "run": 3,
+            "status": "success",
+            "time": 128.998,
+            "rows": 10,
+            "bytes": 280
+          },
+          {
+            "run": 4,
+            "status": "success",
+            "time": 129.248,
+            "rows": 10,
+            "bytes": 280
+          },
+          {
+            "run": 5,
+            "status": "success",
+            "time": 129.809,
+            "rows": 10,
+            "bytes": 280
+          }
+        ],
+        "avg_time": 129.649
+      },
+      "Q5": {
+        "status": "success",
+        "runs": [
+          {
+            "run": 1,
+            "status": "success",
+            "time": 385.619,
+            "rows": 31,
+            "bytes": 496
+          },
+          {
+            "run": 2,
+            "status": "success",
+            "time": 392.507,
+            "rows": 31,
+            "bytes": 496
+          },
+          {
+            "run": 3,
+            "status": "success",
+            "time": 387.35,
+            "rows": 31,
+            "bytes": 496
+          },
+          {
+            "run": 4,
+            "status": "success",
+            "time": 382.647,
+            "rows": 31,
+            "bytes": 496
+          },
+          {
+            "run": 5,
+            "status": "success",
+            "time": 385.989,
+            "rows": 31,
+            "bytes": 496
+          }
+        ],
+        "avg_time": 386.822
+      },
+      "Q6": {
+        "status": "success",
+        "runs": [
+          {
+            "run": 1,
+            "status": "success",
+            "time": 451.62,
+            "rows": 100,
+            "bytes": 3568
+          },
+          {
+            "run": 2,
+            "status": "success",
+            "time": 451.907,
+            "rows": 100,
+            "bytes": 3568
+          },
+          {
+            "run": 3,
+            "status": "success",
+            "time": 463.202,
+            "rows": 100,
+            "bytes": 3568
+          },
+          {
+            "run": 4,
+            "status": "success",
+            "time": 449.885,
+            "rows": 100,
+            "bytes": 3568
+          },
+          {
+            "run": 5,
+            "status": "success",
+            "time": 441.4,
+            "rows": 100,
+            "bytes": 3568
+          }
+        ],
+        "avg_time": 451.603
+      },
+      "Q7": {
+        "status": "empty"
+      },
+      "Q8": {
+        "status": "empty"
+      },
+      "Q9": {
+        "status": "empty"
+      },
+      "Q10": {
+        "status": "empty"
+      }
+    },
+    "started_at": "2025-09-29T04:07:34Z",
+    "finished_at": "2025-09-29T04:08:22Z"
+  }
+}

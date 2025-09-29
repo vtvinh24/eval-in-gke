@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Script to get the latest baseline dump URL from the baseline bucket
+# Script to get the latest baseline job folder from the baseline bucket
 # Usage: ./get-latest-baseline.sh [specific_job_id]
 
 BUCKET_NAME="${BASELINE_BUCKET:-db-baseline}"
@@ -26,8 +26,8 @@ authenticate_gcp() {
   fi
 }
 
-# Function to find the latest baseline dump
-get_latest_baseline_url() {
+# Function to find and list all files in the latest baseline job folder
+get_latest_baseline_files() {
   local specific_job_id="${1:-}"
   
   # Check if bucket exists
@@ -38,16 +38,17 @@ get_latest_baseline_url() {
   
   if [ -n "$specific_job_id" ]; then
     # Use specific job ID
-    local dump_url="gs://$BUCKET_NAME/$specific_job_id/db_dump.sql"
-    if gsutil ls "$dump_url" &>/dev/null; then
-      echo "$dump_url"
+    local job_folder="gs://$BUCKET_NAME/$specific_job_id/"
+    if gsutil ls "$job_folder" &>/dev/null; then
+      # List all files and subdirectories recursively
+      gsutil ls -r "$job_folder"
       return 0
     else
-      echo "ERROR: Specific baseline dump not found: $dump_url" >&2
+      echo "ERROR: Specific baseline job folder not found: $job_folder" >&2
       return 1
     fi
   else
-    # Find the latest job folder with a db_dump.sql
+    # Find the latest job folder
     local latest_job
     latest_job=$(gsutil ls "gs://$BUCKET_NAME/" | grep "/$" | sort -r | head -1)
     
@@ -56,14 +57,9 @@ get_latest_baseline_url() {
       return 1
     fi
     
-    local dump_url="${latest_job}db_dump.sql"
-    if gsutil ls "$dump_url" &>/dev/null; then
-      echo "$dump_url"
-      return 0
-    else
-      echo "ERROR: No db_dump.sql found in latest job folder: $latest_job" >&2
-      return 1
-    fi
+    # List all files and subdirectories recursively in the latest job folder
+    gsutil ls -r "$latest_job"
+    return 0
   fi
 }
 
@@ -73,8 +69,8 @@ if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
   authenticate_gcp
   
   if [ $# -gt 0 ]; then
-    get_latest_baseline_url "$1"
+    get_latest_baseline_files "$1"
   else
-    get_latest_baseline_url
+    get_latest_baseline_files
   fi
 fi

@@ -1,0 +1,32 @@
+{
+  "cpu": {
+    "average_utilization": "65%",
+    "peak_utilization": "89%",
+    "cores_used": 2.6,
+    "total_cores": 4
+  },
+  "memory": {
+    "average_usage": "5.2GB",
+    "peak_usage": "7.1GB",
+    "total_available": "8GB",
+    "utilization": "65%"
+  },
+  "disk": {
+    "read_iops": 450,
+    "write_iops": 180,
+    "read_throughput": "45MB/s",
+    "write_throughput": "23MB/s",
+    "total_space": "1TB",
+    "used_space": "13.1GB"
+  },
+  "network": {
+    "inbound": "12MB",
+    "outbound": "8MB"
+  },
+  "execution_time": {
+    "total": "14m 30s",
+    "migration": "0s",
+    "query_execution": "12m 45s",
+    "validation": "1m 45s"
+  }
+}
