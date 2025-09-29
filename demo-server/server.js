@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const fs = require("fs").promises;
@@ -5,7 +6,9 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const CLOUD_RUN_API_URL = process.env.CLOUD_RUN_API_URL || "https://eval-api-gateway-hash-uc.a.run.app";
+const CLOUD_RUN_API_URL = process.env.CLOUD_RUN_API_URL || "https://eval-api-gateway-337494334022.us-central1.run.app";
+const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || "eval-baseline-outputs-20250928";
+const GCS_BUCKET_URI = process.env.GCS_BUCKET_URI || "gs://eval-baseline-outputs-20250928";
 
 // Middleware
 app.use(express.json());
@@ -358,6 +361,33 @@ app.get("/api/leaderboard", async (req, res) => {
     .sort((a, b) => b.totalScore - a.totalScore);
 
   res.json(leaderboard);
+});
+
+// Get GCS bucket contents
+app.get("/api/gcs/list", authenticate, async (req, res) => {
+  if (req.user.role !== "judge") {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  try {
+    const { exec } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+
+    const { stdout } = await execAsync(`gsutil ls ${GCS_BUCKET_URI}/`);
+    const files = stdout
+      .trim()
+      .split("\n")
+      .filter((line) => line.trim());
+
+    res.json({
+      bucket: GCS_BUCKET_URI,
+      files: files,
+    });
+  } catch (error) {
+    console.error("Error listing GCS bucket:", error.message);
+    res.status(500).json({ error: "Failed to list bucket contents" });
+  }
 });
 
 // Get baseline metrics
