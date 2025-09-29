@@ -186,8 +186,8 @@ elif [[ "$INIT_MODE" == "LOAD" ]]; then
     exit 1
   fi
   
-  # Validate URL format
-  if ! [[ "$BASELINE_DUMP_URL" =~ ^https?:// ]]; then
+  # Validate URL format (skip validation for local mode)
+  if [[ "${UPLOAD_LOCATION:-}" != "local" ]] && ! [[ "$BASELINE_DUMP_URL" =~ ^https?:// ]]; then
     echo "ERROR: BASELINE_DUMP_URL must be a valid HTTP/HTTPS URL" >&2
     exit 1
   fi
@@ -326,13 +326,21 @@ if [ "$INIT_MODE" = "LOAD" ]; then
   # Submission mode: download and load baseline database dump
   echo "Postgres ready. Downloading baseline database dump..."
   
-  # Download the baseline database dump (URL already validated)
+  # Download or copy the baseline database dump
   BASELINE_DOWNLOAD_PATH="/tmp/baseline_dump.sql"
-  echo "Downloading baseline dump from: $BASELINE_DUMP_URL"
-  curl -L -o "$BASELINE_DOWNLOAD_PATH" "$BASELINE_DUMP_URL"
+  
+  if [[ "${UPLOAD_LOCATION:-}" == "local" ]]; then
+    # Local mode: copy the file from local path
+    echo "Copying baseline dump from local path: $BASELINE_DUMP_URL"
+    cp "$BASELINE_DUMP_URL" "$BASELINE_DOWNLOAD_PATH"
+  else
+    # GCP mode: download from URL
+    echo "Downloading baseline dump from: $BASELINE_DUMP_URL"
+    curl -L -o "$BASELINE_DOWNLOAD_PATH" "$BASELINE_DUMP_URL"
+  fi
   
   if [ ! -f "$BASELINE_DOWNLOAD_PATH" ] || [ ! -s "$BASELINE_DOWNLOAD_PATH" ]; then
-    echo "ERROR: Failed to download baseline dump or file is empty" >&2
+    echo "ERROR: Failed to obtain baseline dump or file is empty" >&2
     exit 1
   fi
   
