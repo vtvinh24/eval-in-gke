@@ -9,49 +9,61 @@ let confirmCallback = null;
 // Enhanced status display with better status names and descriptions
 function getStatusDisplay(status) {
   const statusMap = {
-    creating: {
+    "creating": {
       name: "Creating",
       description: "Preparing submission for evaluation",
       color: "info",
       icon: "⏳",
     },
-    queued: {
+    "queued": {
       name: "Queued",
       description: "Waiting for evaluation to start",
       color: "info",
       icon: "⏳",
     },
-    running: {
+    "pending": {
+      name: "Pending",
+      description: "Job is pending in Kubernetes",
+      color: "warning",
+      icon: "⏸️",
+    },
+    "pending-resources": {
+      name: "Pending Resources",
+      description: "Waiting for cluster resources to become available",
+      color: "warning",
+      icon: "🔄",
+    },
+    "running": {
       name: "Running",
       description: "Evaluation in progress",
       color: "info",
       icon: "⚙️",
     },
-    processing: {
+    "processing": {
       name: "Processing",
       description: "Job completed, processing results",
       color: "info",
       icon: "⚙️",
     },
-    evaluated: {
+    "evaluated": {
       name: "Evaluated",
       description: "Evaluation completed successfully",
       color: "success",
       icon: "✅",
     },
-    failed: {
+    "failed": {
       name: "Failed",
       description: "Evaluation failed",
       color: "danger",
       icon: "❌",
     },
-    submitted: {
+    "submitted": {
       name: "Submitted",
       description: "Submission received",
       color: "info",
       icon: "📝",
     },
-    evaluating: {
+    "evaluating": {
       name: "Evaluating",
       description: "Evaluation in progress",
       color: "info",
@@ -86,6 +98,158 @@ async function triggerMonitoring() {
     }
   } catch (error) {
     showAlert(`Failed to trigger monitoring: ${error.message}`, "error");
+  }
+}
+
+// Job polling functionality
+let activePollingJobs = new Set();
+let pollingIntervals = new Map();
+
+async function pollJobStatus(jobId, submissionId = null, onUpdate = null) {
+  // Prevent duplicate polling for the same job
+  if (activePollingJobs.has(jobId)) {
+    return;
+  }
+
+  activePollingJobs.add(jobId);
+  console.log(`🔄 Starting polling for job: ${jobId}`);
+
+  const pollInterval = setInterval(async () => {
+    try {
+      const result = await apiCall(`/jobs/${jobId}/poll`);
+
+      // Call update callback if provided
+      if (onUpdate) {
+        onUpdate(result);
+      }
+
+      // Update submission status display if submissionId is provided
+      if (submissionId) {
+        updateSubmissionDisplay(submissionId, result);
+      }
+
+      // Stop polling if job is completed or failed
+      if (result.status === "completed" || result.status === "failed" || result.status === "not-found") {
+        console.log(`✓ Job ${jobId} finished with status: ${result.status}`);
+        stopPolling(jobId);
+
+        // Refresh the current section to show updated results
+        if (["judgeSubmissions", "teamStatus", "hostProblems"].includes(currentSection)) {
+          setTimeout(() => loadCurrentSection(), 1000); // Small delay to ensure data is processed
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to poll job ${jobId}:`, error.message);
+
+      // Stop polling on consecutive errors
+      if (error.message.includes("not found") || error.message.includes("404")) {
+        console.log(`Stopping polling for job ${jobId} - not found`);
+        stopPolling(jobId);
+      }
+    }
+  }, 10000); // Poll every 10 seconds
+
+  pollingIntervals.set(jobId, pollInterval);
+
+  // Auto-stop polling after 30 minutes to prevent runaway intervals
+  setTimeout(() => {
+    if (activePollingJobs.has(jobId)) {
+      console.log(`⏰ Auto-stopping polling for job ${jobId} after 30 minutes`);
+      stopPolling(jobId);
+    }
+  }, 30 * 60 * 1000);
+}
+
+function stopPolling(jobId) {
+  if (pollingIntervals.has(jobId)) {
+    clearInterval(pollingIntervals.get(jobId));
+    pollingIntervals.delete(jobId);
+  }
+  activePollingJobs.delete(jobId);
+}
+
+function stopAllPolling() {
+  for (const jobId of activePollingJobs) {
+    stopPolling(jobId);
+  }
+}
+
+function updateSubmissionDisplay(submissionId, jobResult) {
+  // Find submission display element and update it
+  const submissionElement = document.querySelector(`[data-submission-id="${submissionId}"]`);
+  if (submissionElement) {
+    const statusElement = submissionElement.querySelector(".status-badge");
+    const progressElement = submissionElement.querySelector(".job-progress");
+
+    if (statusElement && jobResult.progress) {
+      // Update status based on job progress
+      const newStatus = getJobStatusFromProgress(jobResult.progress);
+      statusElement.textContent = newStatus;
+      statusElement.className = `status-badge status-${newStatus.toLowerCase()}`;
+    }
+
+    if (progressElement && jobResult.progress) {
+      progressElement.innerHTML = `
+        <div class="progress-info">
+          <span>${jobResult.progress.phase} (${jobResult.progress.percentage}%)</span>
+          ${jobResult.progress.estimatedTimeRemaining ? `<small>ETA: ${jobResult.progress.estimatedTimeRemaining}</small>` : ""}
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${jobResult.progress.percentage}%"></div>
+        </div>
+      `;
+    }
+  }
+}
+
+function getJobStatusFromProgress(progress) {
+  switch (progress.phase) {
+    case "queued":
+      return "Queued";
+    case "executing":
+      return "Running";
+    case "completed":
+      return "Evaluated";
+    case "failed":
+      return "Failed";
+    default:
+      return "Processing";
+  }
+}
+
+// Enhanced submission status polling for teams
+async function pollSubmissionStatus(submissionId) {
+  try {
+    const result = await apiCall(`/submissions/${submissionId}/status`);
+
+    if (result.job && result.job.id && result.submission.status !== "evaluated" && result.submission.status !== "failed") {
+      // Start polling the job if it's not finished
+      pollJobStatus(result.job.id, submissionId);
+    }
+
+    return result;
+  } catch (error) {
+    console.warn(`Failed to get submission status for ${submissionId}:`, error.message);
+    return null;
+  }
+}
+
+// Cleanup polling when page unloads
+window.addEventListener("beforeunload", () => {
+  stopAllPolling();
+});
+
+// Stop polling when user navigates to different sections (except team status)
+function handleSectionChange(newSection) {
+  if (newSection !== "teamStatus") {
+    // Stop polling when navigating away from team status
+    // but keep it running for a few minutes in case they come back
+    setTimeout(() => {
+      if (currentSection !== "teamStatus") {
+        console.log("Stopping job polling due to section change");
+        stopAllPolling();
+      }
+    }, 2 * 60 * 1000); // 2 minutes delay
   }
 }
 
@@ -271,6 +435,9 @@ function showDefaultSection() {
 }
 
 function showSection(sectionId) {
+  // Handle section change for polling management
+  handleSectionChange(sectionId);
+
   // Hide all sections
   document.querySelectorAll(".section").forEach((section) => {
     section.classList.remove("active");
@@ -1200,6 +1367,12 @@ function showSubmissionForm(problemId, isResubmission = false) {
         `;
       }
 
+      // Start polling for job status if we have a job ID
+      if (result.submission?.jobId) {
+        console.log(`🔄 Starting polling for new submission job: ${result.submission.jobId}`);
+        pollJobStatus(result.submission.jobId, result.submission.id);
+      }
+
       // Show immediate status update as a toast notification
       const toastContent = `
         <p><strong>Problem:</strong> ${problem.title}</p>
@@ -1375,23 +1548,54 @@ async function loadTeamSubmissions() {
     }
 
     container.innerHTML = submissions
-      .map(
-        (submission) => `
-      <div class="submission-card">
-        <div class="submission-header">
-          <h3>${submission.problemId || "Legacy Problem"}</h3>
-          <span class="status-badge status-${submission.status}">${submission.status}</span>
-        </div>
-        <p><strong>Repository:</strong> <a href="${submission.repoUrl}" target="_blank">${formatRepoUrl(submission.repoUrl)}</a></p>
-        <p><strong>Submitted:</strong> ${formatDate(submission.submittedAt)}</p>
-        ${submission.completedAt ? `<p><strong>Completed:</strong> ${formatDate(submission.completedAt)}</p>` : ""}
-        ${submission.autoScore ? `<p><strong>Auto Score:</strong> ${submission.autoScore}/100</p>` : ""}
-        ${submission.averageJudgeScore ? `<p><strong>Judge Score:</strong> ${submission.averageJudgeScore}/100</p>` : ""}
-        ${submission.status === "evaluating" ? `<p><em>Estimated completion: 5-15 minutes from submission time</em></p>` : ""}
-      </div>
-    `
-      )
+      .map((submission) => {
+        const statusDisplay = getStatusDisplay(submission.status);
+        const isActive = ["creating", "queued", "running", "processing"].includes(submission.status);
+
+        return `
+            <div class="submission-card" data-submission-id="${submission.id}">
+              <div class="submission-header">
+                <h3>${submission.problemId || "Legacy Problem"}</h3>
+                <span class="status-badge status-${statusDisplay.color}">${statusDisplay.icon} ${statusDisplay.name}</span>
+              </div>
+              <p><strong>Repository:</strong> <a href="${submission.repoUrl}" target="_blank">${formatRepoUrl(submission.repoUrl)}</a></p>
+              <p><strong>Submitted:</strong> ${formatDate(submission.submittedAt)}</p>
+              ${submission.completedAt ? `<p><strong>Completed:</strong> ${formatDate(submission.completedAt)}</p>` : ""}
+              ${submission.autoScore ? `<p><strong>Auto Score:</strong> ${submission.autoScore}/100</p>` : ""}
+              ${submission.averageJudgeScore ? `<p><strong>Judge Score:</strong> ${submission.averageJudgeScore}/100</p>` : ""}
+              ${submission.jobId ? `<p><strong>Job ID:</strong> <code>${submission.jobId}</code></p>` : ""}
+              ${
+                isActive
+                  ? `
+                <div class="job-progress">
+                  <div class="progress-info">
+                    <span>Processing...</span>
+                    <small>ETA: 5-15 minutes</small>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width: 25%"></div>
+                  </div>
+                </div>
+              `
+                  : ""
+              }
+              ${submission.error ? `<p class="alert alert-error"><strong>Error:</strong> ${submission.error}</p>` : ""}
+            </div>
+          `;
+      })
       .join("");
+
+    // Start polling for active submissions
+    submissions.forEach((submission) => {
+      if (["creating", "queued", "running", "processing"].includes(submission.status)) {
+        if (submission.jobId) {
+          pollJobStatus(submission.jobId, submission.id);
+        } else {
+          // Poll submission status directly if no job ID yet
+          pollSubmissionStatus(submission.id);
+        }
+      }
+    });
   } catch (error) {
     container.innerHTML = `<p class="alert alert-error">Error loading submissions: ${error.message}</p>`;
   }

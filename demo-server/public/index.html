@@ -691,6 +691,111 @@
         animation: progress-pulse 2s ease-in-out infinite;
       }
 
+      /* Job progress specific styles */
+      .job-progress {
+        margin-top: 15px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border-left: 4px solid #3498db;
+      }
+
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+
+      .progress-info small {
+        color: #666;
+        font-size: 12px;
+      }
+
+      .job-progress .progress-bar {
+        height: 6px;
+        margin-bottom: 0;
+      }
+
+      .job-progress .progress-fill {
+        transition: width 0.3s ease;
+        animation: none;
+      }
+
+      /* Progress steps for submission form */
+      .submission-progress {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+      }
+
+      .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+        position: relative;
+      }
+
+      .progress-steps::before {
+        content: "";
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        right: 20px;
+        height: 2px;
+        background: #dee2e6;
+        z-index: 1;
+      }
+
+      .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        z-index: 2;
+      }
+
+      .step-number {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #dee2e6;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-bottom: 8px;
+        transition: all 0.3s ease;
+      }
+
+      .step.active .step-number {
+        background: #3498db;
+        color: white;
+      }
+
+      .step-label {
+        font-size: 12px;
+        text-align: center;
+        color: #6c757d;
+        max-width: 80px;
+      }
+
+      .step.active .step-label {
+        color: #3498db;
+        font-weight: 500;
+      }
+
+      .progress-message {
+        text-align: center;
+        font-size: 14px;
+        color: #666;
+        font-style: italic;
+      }
+
       @keyframes progress-pulse {
         0%,
         100% {

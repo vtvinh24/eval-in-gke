@@ -368,40 +368,5 @@
         "submittedAt": "2025-09-29T13:35:11.580Z"
       }
     ]
-  },
-  "sub_1759154240871": {
-    "id": "sub_1759154240871",
-    "problemId": "db-query-optimization",
-    "teamId": "team2",
-    "teamName": "Team Beta",
-    "repoUrl": "https://github.com/vtvinh24/db-submission",
-    "jobId": null,
-    "status": "creating",
-    "submittedAt": "2025-09-29T13:57:20.871Z",
-    "autoScore": null,
-    "judgeScores": [
-      {
-        "judgeId": "judge1",
-        "judgeName": "Judge Alice",
-        "scores": {
-          "correctness": 40,
-          "performance": 30,
-          "codeQuality": 20,
-          "documentation": 9
-        },
-        "weights": {
-          "correctness": 50,
-          "latency": 30,
-          "concurrency": 10,
-          "storageEfficiency": 10
-        },
-        "totalScore": null,
-        "comments": "2131312",
-        "submittedAt": "2025-09-29T13:59:13.704Z"
-      }
-    ],
-    "metrics": null,
-    "replacedSubmission": null,
-    "averageJudgeScore": null
   }
 }

@@ -22,12 +22,12 @@
     "submissionDockerParams": {
       "resources": {
         "requests": {
-          "memory": "4Gi",
-          "cpu": "2000m"
+          "memory": "512Mi",
+          "cpu": "500m"
         },
         "limits": {
-          "memory": "8Gi",
-          "cpu": "4000m"
+          "memory": "1024Mi",
+          "cpu": "1000m"
         }
       },
       "timeoutSeconds": 1800
@@ -36,12 +36,12 @@
     "baselineDockerParams": {
       "resources": {
         "requests": {
-          "memory": "4Gi",
-          "cpu": "2000m"
+          "memory": "512Mi",
+          "cpu": "500m"
         },
         "limits": {
-          "memory": "8Gi",
-          "cpu": "4000m"
+          "memory": "1024Mi",
+          "cpu": "1000m"
         }
       },
       "timeoutSeconds": 1800

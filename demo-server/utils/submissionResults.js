@@ -226,25 +226,85 @@ class SubmissionResultsMonitor {
   async getKubernetesJobStatus(jobId) {
     try {
       const env = this.getGCPEnvironment();
-      const namespace = process.env.GKE_NAMESPACE || "eval-system";
+      const namespace = process.env.GKE_NAMESPACE || "default";
 
-      // Get job status from Kubernetes
-      const command = `kubectl get job ${jobId} -n ${namespace} -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || echo "NotFound"`;
-      const { stdout } = await execAsync(command, { env });
-
-      const status = stdout.trim();
-
-      // Map Kubernetes status to our status
-      switch (status) {
-        case "Complete":
-          return "completed";
-        case "Failed":
-          return "failed";
-        case "NotFound":
+      // First check if job exists and get basic status
+      const jobExistsCommand = `kubectl get job ${jobId} -n ${namespace} -o json 2>/dev/null`;
+      let jobData;
+      try {
+        const { stdout } = await execAsync(jobExistsCommand, { env });
+        jobData = JSON.parse(stdout);
+      } catch (error) {
+        // Job not found in this namespace, try other common namespaces
+        const namespaces = ["default", "eval-system"];
+        for (const ns of namespaces) {
+          try {
+            const command = `kubectl get job ${jobId} -n ${ns} -o json 2>/dev/null`;
+            const { stdout } = await execAsync(command, { env });
+            jobData = JSON.parse(stdout);
+            if (this.config.debug) {
+              console.log(`Found job ${jobId} in namespace ${ns}`);
+            }
+            break;
+          } catch (e) {
+            continue;
+          }
+        }
+        if (!jobData) {
           return "not-found";
-        default:
-          return "running";
+        }
       }
+
+      // Check job conditions for completion status
+      const conditions = jobData.status?.conditions || [];
+      const completedCondition = conditions.find((c) => c.type === "Complete");
+      const failedCondition = conditions.find((c) => c.type === "Failed");
+
+      if (completedCondition && completedCondition.status === "True") {
+        return "completed";
+      }
+      if (failedCondition && failedCondition.status === "True") {
+        return "failed";
+      }
+
+      // Check pod status for more detailed info
+      const active = jobData.status?.active || 0;
+      const ready = jobData.status?.ready || 0;
+
+      if (active > 0) {
+        // Job has active pods, check if they're actually running
+        try {
+          const podCommand = `kubectl get pods -n ${jobData.metadata.namespace} -l job-name=${jobId} -o json 2>/dev/null`;
+          const { stdout: podStdout } = await execAsync(podCommand, { env });
+          const podData = JSON.parse(podStdout);
+
+          if (podData.items && podData.items.length > 0) {
+            const pod = podData.items[0];
+            const phase = pod.status?.phase;
+
+            if (phase === "Pending") {
+              // Check if it's pending due to resource constraints
+              const conditions = pod.status?.conditions || [];
+              const scheduled = conditions.find((c) => c.type === "PodScheduled");
+              if (scheduled && scheduled.status === "False") {
+                return "pending-resources";
+              }
+              return "pending";
+            } else if (phase === "Running") {
+              return "running";
+            }
+          }
+        } catch (podError) {
+          if (this.config.debug) {
+            console.warn(`Could not get pod status for job ${jobId}:`, podError.message);
+          }
+        }
+
+        return "running";
+      }
+
+      // Job exists but no active pods
+      return "queued";
     } catch (error) {
       if (this.config.debug) {
         console.warn(`Failed to get Kubernetes job status for ${jobId}:`, error.message);
@@ -282,13 +342,13 @@ class SubmissionResultsMonitor {
 
     // Monitor jobs across all problems
     for (const [problemId, problem] of Object.entries(data.problems || {})) {
-      const runningJobs = Object.entries(problem.jobStatuses || {}).filter(([jobId, status]) => status === "running" || status === "queued" || status === "processing");
+      const activeJobs = Object.entries(problem.jobStatuses || {}).filter(([jobId, status]) => ["running", "queued", "processing", "pending", "pending-resources"].includes(status));
 
-      if (runningJobs.length > 0 && this.config.debug) {
-        console.log(`Monitoring ${runningJobs.length} jobs for problem ${problemId}`);
+      if (activeJobs.length > 0 && this.config.debug) {
+        console.log(`Monitoring ${activeJobs.length} jobs for problem ${problemId}`);
       }
 
-      for (const [jobId, status] of runningJobs) {
+      for (const [jobId, status] of activeJobs) {
         try {
           if (this.config.debug) {
             console.log(`Checking job ${jobId} (${status}) for problem ${problemId}`);
@@ -354,6 +414,38 @@ class SubmissionResultsMonitor {
 
             problem.jobStatuses[jobId] = "failed";
             hasUpdates = true;
+          } else if (k8sStatus === "pending-resources") {
+            // Job is pending due to insufficient resources
+            if (this.config.debug) {
+              console.log(`⏸ Job ${jobId} is pending due to insufficient cluster resources`);
+            }
+            if (problem.jobStatuses[jobId] !== "pending-resources") {
+              problem.jobStatuses[jobId] = "pending-resources";
+
+              // Update submission status
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission && submission.status !== "pending-resources") {
+                submission.status = "pending-resources";
+                hasUpdates = true;
+              }
+              hasUpdates = true;
+            }
+          } else if (k8sStatus === "pending") {
+            // Job is pending for other reasons
+            if (this.config.debug) {
+              console.log(`⏳ Job ${jobId} is pending in Kubernetes`);
+            }
+            if (problem.jobStatuses[jobId] !== "pending") {
+              problem.jobStatuses[jobId] = "pending";
+
+              // Update submission status
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission && submission.status !== "pending") {
+                submission.status = "pending";
+                hasUpdates = true;
+              }
+              hasUpdates = true;
+            }
           } else if (k8sStatus === "running" && problem.jobStatuses[jobId] !== "running") {
             // Job is actively running
             if (this.config.debug) {

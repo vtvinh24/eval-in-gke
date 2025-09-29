@@ -271,39 +271,84 @@ async function createJobUsingScript(type, repoUrl, config = {}) {
     const { promisify } = require("util");
     const execAsync = promisify(exec);
 
-    // Set up environment variables
+    // Set up environment variables for the script
     const env = {
       ...process.env,
       GCP_CREDENTIALS_JSON: process.env.GCP_CREDENTIALS_JSON_PATH || "./config/service-account.json",
-      GKE_NAMESPACE: process.env.GKE_NAMESPACE || "eval-system",
+      GKE_NAMESPACE: process.env.GKE_NAMESPACE || "default",
+      JOB_NAME_PREFIX: config.jobNamePrefix || "eval",
+      EXEC_PER_QUERY: config.exec_per_query || "3",
+      TIMEOUT_SECONDS: config.timeout ? Math.floor(config.timeout / 1000) : "600",
     };
 
     // Get the script path
-    const scriptPath = path.resolve(__dirname, process.env.CREATE_JOB_SCRIPT || "../scripts/create-job.sh");
+    const scriptPath = path.resolve(__dirname, process.env.CREATE_JOB_SCRIPT || "./scripts/create-job.sh");
 
-    let command = `bash "${scriptPath}" ${type}`;
+    // Check if script exists
+    try {
+      await fs.access(scriptPath);
+    } catch (accessError) {
+      throw new Error(`Create job script not found at: ${scriptPath}`);
+    }
+
+    // Build command
+    let command = `bash "${scriptPath}" "${type}"`;
     if (repoUrl) {
       command += ` "${repoUrl}"`;
     }
 
     console.log(`Creating ${type} job using script: ${command}`);
+    console.log(`Environment: GKE_NAMESPACE=${env.GKE_NAMESPACE}, TIMEOUT_SECONDS=${env.TIMEOUT_SECONDS}`);
 
-    // Execute the create-job.sh script
-    const { stdout } = await execAsync(command, { env });
+    // Execute the create-job.sh script with timeout
+    const { stdout, stderr } = await execAsync(command, {
+      env,
+      timeout: 60000, // 60 second timeout for script execution
+    });
+
+    // Log script output for debugging
+    if (stderr && stderr.trim()) {
+      console.log(`Script stderr: ${stderr.trim()}`);
+    }
 
     // Parse the job ID from script output
-    // The script should output the job ID or job name
-    const jobId = stdout.trim().split("\n").pop(); // Get last line of output
+    // The script should output the job ID as the last line
+    const outputLines = stdout.trim().split("\n");
+    const jobId = outputLines[outputLines.length - 1];
 
-    if (jobId && jobId.length > 0) {
-      console.log(`Job created via script: ${jobId}`);
-      return { job_id: jobId };
+    if (jobId && jobId.length > 0 && !jobId.startsWith("Error:")) {
+      console.log(`✓ Job created successfully: ${jobId}`);
+
+      // Verify job exists in Kubernetes
+      try {
+        const verifyCommand = `kubectl get job "${jobId}" -n "${env.GKE_NAMESPACE}" --no-headers 2>/dev/null`;
+        await execAsync(verifyCommand, { env });
+        console.log(`✓ Job ${jobId} verified in Kubernetes`);
+      } catch (verifyError) {
+        console.warn(`⚠ Could not verify job ${jobId} in Kubernetes:`, verifyError.message);
+      }
+
+      return {
+        job_id: jobId,
+        type: type,
+        namespace: env.GKE_NAMESPACE,
+        created_at: new Date().toISOString(),
+      };
     } else {
-      throw new Error("Script did not return a job ID");
+      const errorMsg = jobId && jobId.startsWith("Error:") ? jobId : "Script did not return a valid job ID";
+      throw new Error(errorMsg);
     }
   } catch (error) {
-    console.error("Error creating job using script:", error.message);
-    throw error;
+    console.error(`❌ Error creating ${type} job:`, error.message);
+
+    // Provide more specific error information
+    if (error.code === "ENOENT") {
+      throw new Error("Create job script not found or not executable");
+    } else if (error.signal === "SIGTERM") {
+      throw new Error("Job creation script timed out");
+    } else {
+      throw new Error(`Job creation failed: ${error.message}`);
+    }
   }
 }
 
@@ -317,7 +362,7 @@ async function getKubernetesJobStatus(jobId) {
     const env = {
       ...process.env,
       GCP_CREDENTIALS_JSON: process.env.GCP_CREDENTIALS_JSON_PATH || "./config/service-account.json",
-      GKE_NAMESPACE: process.env.GKE_NAMESPACE || "eval-system",
+      GKE_NAMESPACE: process.env.GKE_NAMESPACE || "default",
     };
 
     // Get job status from Kubernetes
@@ -1582,6 +1627,224 @@ app.get("/api/monitor/status", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Error getting monitoring status:", error);
     res.status(500).json({ error: "Failed to get monitoring status" });
+  }
+});
+
+// Enhanced submission status endpoint with job details
+app.get("/api/submissions/:submissionId/status", authenticate, async (req, res) => {
+  const { submissionId } = req.params;
+
+  try {
+    const submission = await dataManager.getSubmission(submissionId);
+
+    if (!submission) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    // Check if user has permission to view this submission
+    if (req.user.role === "team" && submission.teamId !== req.user.id) {
+      return res.status(403).json({ error: "You can only view your own submissions" });
+    }
+
+    let jobStatus = null;
+    let jobDetails = null;
+
+    // Get job status if submission has a job ID
+    if (submission.jobId) {
+      try {
+        jobStatus = await getKubernetesJobStatus(submission.jobId);
+
+        // Get additional job details from GCS if available
+        const jobResults = await fetchSubmissionResultsFromGCS(submission.jobId, submission.problemId);
+        if (jobResults) {
+          jobDetails = {
+            hasResults: true,
+            resultStatus: jobResults.queries ? "ready" : "processing",
+            queriesCount: jobResults.queries ? Object.keys(jobResults.queries).length : 0,
+          };
+        }
+      } catch (error) {
+        console.warn(`Failed to get job status for ${submission.jobId}:`, error.message);
+        jobStatus = "unknown";
+      }
+    }
+
+    res.json({
+      submission: {
+        id: submission.id,
+        problemId: submission.problemId,
+        teamId: submission.teamId,
+        teamName: submission.teamName,
+        repoUrl: submission.repoUrl,
+        status: submission.status,
+        submittedAt: submission.submittedAt,
+        startedAt: submission.startedAt,
+        completedAt: submission.completedAt,
+        autoScore: submission.autoScore,
+        error: submission.error,
+      },
+      job: {
+        id: submission.jobId,
+        status: jobStatus,
+        details: jobDetails,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`Error getting submission status for ${submissionId}:`, error);
+    res.status(500).json({ error: "Failed to get submission status" });
+  }
+});
+
+// Bulk submission status endpoint for teams
+app.get("/api/submissions/status/bulk", authenticate, async (req, res) => {
+  const { problemId, teamId } = req.query;
+
+  try {
+    let submissions;
+
+    if (req.user.role === "team") {
+      // Teams can only see their own submissions
+      submissions = await dataManager.getSubmissionsByTeam(req.user.id, problemId);
+    } else if (req.user.role === "judge" || req.user.role === "host") {
+      // Judges and hosts can see all submissions
+      if (teamId) {
+        submissions = await dataManager.getSubmissionsByTeam(teamId, problemId);
+      } else {
+        submissions = await dataManager.getSubmissions(problemId);
+      }
+    } else {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    // Get job status for each submission
+    const submissionStatuses = await Promise.all(
+      submissions.map(async (submission) => {
+        let jobStatus = null;
+        if (submission.jobId) {
+          try {
+            jobStatus = await getKubernetesJobStatus(submission.jobId);
+          } catch (error) {
+            jobStatus = "unknown";
+          }
+        }
+
+        return {
+          id: submission.id,
+          problemId: submission.problemId,
+          teamId: submission.teamId,
+          status: submission.status,
+          jobId: submission.jobId,
+          jobStatus: jobStatus,
+          submittedAt: submission.submittedAt,
+          autoScore: submission.autoScore,
+        };
+      })
+    );
+
+    res.json({
+      submissions: submissionStatuses,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error getting bulk submission status:", error);
+    res.status(500).json({ error: "Failed to get submission statuses" });
+  }
+});
+
+// Enhanced job polling endpoint with progress details
+app.get("/api/jobs/:jobId/poll", authenticate, async (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    // Get Kubernetes job status
+    const k8sStatus = await getKubernetesJobStatus(jobId);
+
+    // Get job results from GCS
+    const jobResults = await fetchSubmissionResultsFromGCS(jobId);
+
+    // Get pod logs if job is running or failed (for debugging)
+    let podLogs = null;
+    if (k8sStatus === "running" || k8sStatus === "failed") {
+      try {
+        const { exec } = require("child_process");
+        const { promisify } = require("util");
+        const execAsync = promisify(exec);
+
+        const namespace = process.env.GKE_NAMESPACE || "default";
+        const logCommand = `kubectl logs job/${jobId} -n ${namespace} --tail=10 2>/dev/null || echo "No logs available"`;
+        const { stdout } = await execAsync(logCommand);
+        podLogs = stdout.trim();
+      } catch (logError) {
+        console.warn(`Failed to get logs for job ${jobId}:`, logError.message);
+      }
+    }
+
+    // Calculate progress based on available information
+    let progress = {
+      phase: "unknown",
+      percentage: 0,
+      estimatedTimeRemaining: null,
+      details: null,
+    };
+
+    switch (k8sStatus) {
+      case "running":
+        progress.phase = "executing";
+        progress.percentage = jobResults ? 50 : 25; // Rough estimate
+        progress.estimatedTimeRemaining = "5-10 minutes";
+        break;
+      case "completed":
+        progress.phase = "completed";
+        progress.percentage = 100;
+        break;
+      case "failed":
+        progress.phase = "failed";
+        progress.percentage = 0;
+        break;
+      case "not-found":
+        progress.phase = "not-found";
+        progress.percentage = 0;
+        break;
+      default:
+        progress.phase = "queued";
+        progress.percentage = 10;
+        progress.estimatedTimeRemaining = "10-15 minutes";
+    }
+
+    if (jobResults) {
+      progress.details = {
+        hasResults: true,
+        queriesFound: jobResults.queries ? Object.keys(jobResults.queries).length : 0,
+        summary: jobResults.summary || null,
+      };
+    }
+
+    res.json({
+      jobId: jobId,
+      status: k8sStatus,
+      progress: progress,
+      results: jobResults
+        ? {
+            available: true,
+            processed: !!jobResults.queries,
+            summary: jobResults.summary || null,
+          }
+        : {
+            available: false,
+            processed: false,
+            summary: null,
+          },
+      logs: podLogs,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`Error polling job ${jobId}:`, error);
+    res.status(500).json({
+      error: "Failed to poll job status",
+      jobId: jobId,
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
