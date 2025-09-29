@@ -6,6 +6,89 @@ let availableProblems = [];
 let currentSection = null;
 let confirmCallback = null;
 
+// Enhanced status display with better status names and descriptions
+function getStatusDisplay(status) {
+  const statusMap = {
+    creating: {
+      name: "Creating",
+      description: "Preparing submission for evaluation",
+      color: "info",
+      icon: "⏳",
+    },
+    queued: {
+      name: "Queued",
+      description: "Waiting for evaluation to start",
+      color: "info",
+      icon: "⏳",
+    },
+    running: {
+      name: "Running",
+      description: "Evaluation in progress",
+      color: "info",
+      icon: "⚙️",
+    },
+    processing: {
+      name: "Processing",
+      description: "Job completed, processing results",
+      color: "info",
+      icon: "⚙️",
+    },
+    evaluated: {
+      name: "Evaluated",
+      description: "Evaluation completed successfully",
+      color: "success",
+      icon: "✅",
+    },
+    failed: {
+      name: "Failed",
+      description: "Evaluation failed",
+      color: "danger",
+      icon: "❌",
+    },
+    submitted: {
+      name: "Submitted",
+      description: "Submission received",
+      color: "info",
+      icon: "📝",
+    },
+    evaluating: {
+      name: "Evaluating",
+      description: "Evaluation in progress",
+      color: "info",
+      icon: "⚙️",
+    },
+  };
+
+  return (
+    statusMap[status] || {
+      name: status,
+      description: "Unknown status",
+      color: "secondary",
+      icon: "❓",
+    }
+  );
+}
+
+// Manual monitoring trigger for debugging
+async function triggerMonitoring() {
+  if (currentUser.role !== "host" && currentUser.role !== "judge") {
+    showAlert("Only hosts and judges can trigger monitoring", "error");
+    return;
+  }
+
+  try {
+    const result = await apiCall("/monitor/trigger", { method: "POST" });
+    showAlert(`Monitoring triggered successfully. Updates: ${result.hasUpdates ? "Yes" : "No"}`, "success");
+
+    // Refresh current section if it shows submissions
+    if (["judgeSubmissions", "teamStatus", "hostProblems"].includes(currentSection)) {
+      loadCurrentSection();
+    }
+  } catch (error) {
+    showAlert(`Failed to trigger monitoring: ${error.message}`, "error");
+  }
+}
+
 // Utility functions
 function showAlert(message, type = "info") {
   // Use toast notification instead of inline alerts
@@ -354,11 +437,21 @@ async function loadJudgeSubmissions() {
     const submissions = await apiCall("/submissions");
 
     if (submissions.length === 0) {
-      container.innerHTML = "<p>No submissions found.</p>";
+      container.innerHTML = `
+        <div class="section-header">
+          <h3>All Submissions</h3>
+          <button class="btn btn-secondary" onclick="triggerMonitoring()">🔄 Refresh Status</button>
+        </div>
+        <p>No submissions found.</p>
+      `;
       return;
     }
 
     container.innerHTML = `
+      <div class="section-header">
+        <h3>All Submissions</h3>
+        <button class="btn btn-secondary" onclick="triggerMonitoring()">🔄 Refresh Status</button>
+      </div>
       <table class="table">
         <thead>
           <tr>
@@ -381,7 +474,9 @@ async function loadJudgeSubmissions() {
               <td>${submission.problemId || "Legacy"}</td>
               <td><a href="${submission.repoUrl}" target="_blank">${formatRepoUrl(submission.repoUrl)}</a></td>
               <td>${formatDate(submission.submittedAt)}</td>
-              <td><span class="status-badge status-${submission.status}">${submission.status}</span></td>
+              <td><span class="status-badge status-${submission.status}" title="${getStatusDisplay(submission.status).description}">${getStatusDisplay(submission.status).icon} ${
+                getStatusDisplay(submission.status).name
+              }</span></td>
               <td>${submission.autoScore || "N/A"}</td>
               <td>${submission.averageJudgeScore || "Not scored"}</td>
               <td>
@@ -413,7 +508,9 @@ async function evaluateSubmission(submissionId) {
           <p><strong>Repository:</strong> <a href="${submission.repoUrl}" target="_blank">${submission.repoUrl}</a></p>
           <p><strong>Problem:</strong> ${submission.problemId || "Legacy Problem"}</p>
           <p><strong>Submitted:</strong> ${formatDate(submission.submittedAt)}</p>
-          <p><strong>Status:</strong> <span class="status-badge status-${submission.status}">${submission.status}</span></p>
+          <p><strong>Status:</strong> <span class="status-badge status-${submission.status}" title="${getStatusDisplay(submission.status).description}">${getStatusDisplay(submission.status).icon} ${
+      getStatusDisplay(submission.status).name
+    }</span></p>
           ${submission.autoScore ? `<p><strong>Auto Score:</strong> ${submission.autoScore}/100</p>` : ""}
         </div>
 

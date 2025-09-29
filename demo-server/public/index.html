@@ -192,11 +192,15 @@
         text-transform: uppercase;
       }
 
-      .status-submitted {
+      .status-submitted,
+      .status-creating,
+      .status-queued {
         background: #3498db;
         color: white;
       }
-      .status-evaluating {
+      .status-evaluating,
+      .status-running,
+      .status-processing {
         background: #f39c12;
         color: white;
       }
@@ -207,6 +211,30 @@
       .status-failed {
         background: #e74c3c;
         color: white;
+      }
+
+      /* Section header styles */
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 15px 0;
+        border-bottom: 2px solid #ecf0f1;
+      }
+
+      .section-header h3 {
+        margin: 0;
+        color: #2c3e50;
+      }
+
+      .btn-secondary {
+        background: #95a5a6;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #7f8c8d;
       }
 
       .submission-card {

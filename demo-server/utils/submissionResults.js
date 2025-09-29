@@ -219,6 +219,41 @@ class SubmissionResultsMonitor {
   }
 
   /**
+   * Check Kubernetes job status
+   * @param {string} jobId - The job ID to check
+   * @returns {string} Job status
+   */
+  async getKubernetesJobStatus(jobId) {
+    try {
+      const env = this.getGCPEnvironment();
+      const namespace = process.env.GKE_NAMESPACE || "eval-system";
+
+      // Get job status from Kubernetes
+      const command = `kubectl get job ${jobId} -n ${namespace} -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || echo "NotFound"`;
+      const { stdout } = await execAsync(command, { env });
+
+      const status = stdout.trim();
+
+      // Map Kubernetes status to our status
+      switch (status) {
+        case "Complete":
+          return "completed";
+        case "Failed":
+          return "failed";
+        case "NotFound":
+          return "not-found";
+        default:
+          return "running";
+      }
+    } catch (error) {
+      if (this.config.debug) {
+        console.warn(`Failed to get Kubernetes job status for ${jobId}:`, error.message);
+      }
+      return "unknown";
+    }
+  }
+
+  /**
    * Calculate overall average execution time across all successful queries
    */
   calculateOverallAverageTime(queryStats) {
@@ -259,54 +294,162 @@ class SubmissionResultsMonitor {
             console.log(`Checking job ${jobId} (${status}) for problem ${problemId}`);
           }
 
-          // Try to fetch results directly from GCS
-          const resultsData = await this.fetchSubmissionResults(jobId, problemId);
+          // First check Kubernetes job status for real-time updates
+          const k8sStatus = await this.getKubernetesJobStatus(jobId);
 
-          if (resultsData && resultsData.queries) {
-            // Results found in GCS, job is completed
-            console.log(`✓ Job ${jobId} results found in GCS for problem ${problemId}`);
+          if (k8sStatus === "completed") {
+            // Job completed in Kubernetes, check for results in GCS
+            const resultsData = await this.fetchSubmissionResults(jobId, problemId);
 
-            const submission = problem.submissions.find((s) => s.jobId === jobId);
-            if (submission) {
-              submission.metrics = resultsData;
-              submission.status = "evaluated";
-              submission.completedAt = new Date().toISOString();
+            if (resultsData && resultsData.queries) {
+              // Results found in GCS, job is fully completed
+              console.log(`✓ Job ${jobId} completed with results in GCS for problem ${problemId}`);
 
-              // Calculate score if function provided
-              if (calculateScoreFn && problem.baselineMetrics) {
-                submission.autoScore = calculateScoreFn(submission.metrics, problem.baselineMetrics);
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission) {
+                submission.metrics = resultsData;
+                submission.status = "evaluated";
+                submission.completedAt = new Date().toISOString();
+
+                // Calculate score if function provided
+                if (calculateScoreFn && problem.baselineMetrics) {
+                  submission.autoScore = calculateScoreFn(submission.metrics, problem.baselineMetrics);
+                }
+
+                console.log(`✓ Submission ${submission.id} updated: auto score = ${submission.autoScore || "N/A"}`);
+              } else {
+                console.log(`⚠ No submission found for job ${jobId}`);
               }
 
-              console.log(`✓ Submission ${submission.id} updated: auto score = ${submission.autoScore || "N/A"}`);
-            } else {
-              console.log(`⚠ No submission found for job ${jobId}`);
-            }
-
-            problem.jobStatuses[jobId] = "completed";
-            hasUpdates = true;
-          } else if (resultsData && resultsData.status === "processing") {
-            // Job completed but results still being processed
-            if (this.config.debug) {
-              console.log(`⏳ Job ${jobId} completed but results still processing`);
-            }
-            if (problem.jobStatuses[jobId] !== "processing") {
-              problem.jobStatuses[jobId] = "processing";
+              problem.jobStatuses[jobId] = "completed";
               hasUpdates = true;
+            } else {
+              // Job completed but results not ready yet
+              if (this.config.debug) {
+                console.log(`⏳ Job ${jobId} completed in K8s but results not yet in GCS`);
+              }
+              if (problem.jobStatuses[jobId] !== "processing") {
+                problem.jobStatuses[jobId] = "processing";
+
+                // Update submission status
+                const submission = problem.submissions.find((s) => s.jobId === jobId);
+                if (submission && submission.status !== "processing") {
+                  submission.status = "processing";
+                  hasUpdates = true;
+                }
+
+                hasUpdates = true;
+              }
             }
-          } else {
-            // No results found yet, increment error count for eventual timeout
+          } else if (k8sStatus === "failed") {
+            // Job failed in Kubernetes
+            console.log(`❌ Job ${jobId} failed in Kubernetes`);
+
             const submission = problem.submissions.find((s) => s.jobId === jobId);
             if (submission) {
-              submission.errorCount = (submission.errorCount || 0) + 1;
+              submission.status = "failed";
+              submission.completedAt = new Date().toISOString();
+              submission.error = "Job failed in Kubernetes";
+            }
 
-              if (submission.errorCount >= this.config.maxRetries) {
-                console.log(`❌ Job ${jobId} marked as failed after ${submission.errorCount} failed checks`);
-                submission.status = "failed";
+            problem.jobStatuses[jobId] = "failed";
+            hasUpdates = true;
+          } else if (k8sStatus === "running" && problem.jobStatuses[jobId] !== "running") {
+            // Job is actively running
+            if (this.config.debug) {
+              console.log(`▶ Job ${jobId} is running in Kubernetes`);
+            }
+            problem.jobStatuses[jobId] = "running";
+
+            // Update submission status
+            const submission = problem.submissions.find((s) => s.jobId === jobId);
+            if (submission && submission.status !== "running") {
+              submission.status = "running";
+              hasUpdates = true;
+            }
+
+            hasUpdates = true;
+          } else if (k8sStatus === "not-found") {
+            // Job not found - might have been cleaned up, check one more time for results
+            console.log(`❓ Job ${jobId} not found in Kubernetes, checking for final results`);
+
+            const resultsData = await this.fetchSubmissionResults(jobId, problemId);
+            if (resultsData && resultsData.queries) {
+              // Found results even though job was cleaned up
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission) {
+                submission.metrics = resultsData;
+                submission.status = "evaluated";
                 submission.completedAt = new Date().toISOString();
-                problem.jobStatuses[jobId] = "failed";
+
+                if (calculateScoreFn && problem.baselineMetrics) {
+                  submission.autoScore = calculateScoreFn(submission.metrics, problem.baselineMetrics);
+                }
+              }
+              problem.jobStatuses[jobId] = "completed";
+              hasUpdates = true;
+            } else {
+              // Job not found and no results - mark as failed after some retries
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission) {
+                submission.errorCount = (submission.errorCount || 0) + 1;
+                if (submission.errorCount >= this.config.maxRetries) {
+                  submission.status = "failed";
+                  submission.completedAt = new Date().toISOString();
+                  submission.error = "Job not found in Kubernetes and no results available";
+                  problem.jobStatuses[jobId] = "failed";
+                  hasUpdates = true;
+                }
+              }
+            }
+          } else {
+            // Unknown status or no change, try to fetch results anyway
+            const resultsData = await this.fetchSubmissionResults(jobId, problemId);
+
+            if (resultsData && resultsData.queries) {
+              // Found results
+              console.log(`✓ Job ${jobId} results found in GCS for problem ${problemId}`);
+
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission) {
+                submission.metrics = resultsData;
+                submission.status = "evaluated";
+                submission.completedAt = new Date().toISOString();
+
+                if (calculateScoreFn && problem.baselineMetrics) {
+                  submission.autoScore = calculateScoreFn(submission.metrics, problem.baselineMetrics);
+                }
+
+                console.log(`✓ Submission ${submission.id} updated: auto score = ${submission.autoScore || "N/A"}`);
+              }
+
+              problem.jobStatuses[jobId] = "completed";
+              hasUpdates = true;
+            } else if (resultsData && resultsData.status === "processing") {
+              // Job completed but results still being processed
+              if (this.config.debug) {
+                console.log(`⏳ Job ${jobId} completed but results still processing`);
+              }
+              if (problem.jobStatuses[jobId] !== "processing") {
+                problem.jobStatuses[jobId] = "processing";
                 hasUpdates = true;
-              } else if (this.config.debug) {
-                console.log(`⏳ Job ${jobId} still ${status}, check ${submission.errorCount}/${this.config.maxRetries}`);
+              }
+            } else {
+              // No results found yet, increment error count for eventual timeout
+              const submission = problem.submissions.find((s) => s.jobId === jobId);
+              if (submission) {
+                submission.errorCount = (submission.errorCount || 0) + 1;
+
+                if (submission.errorCount >= this.config.maxRetries) {
+                  console.log(`❌ Job ${jobId} marked as failed after ${submission.errorCount} failed checks`);
+                  submission.status = "failed";
+                  submission.completedAt = new Date().toISOString();
+                  submission.error = "Timeout waiting for results";
+                  problem.jobStatuses[jobId] = "failed";
+                  hasUpdates = true;
+                } else if (this.config.debug) {
+                  console.log(`⏳ Job ${jobId} still ${status}, check ${submission.errorCount}/${this.config.maxRetries}`);
+                }
               }
             }
           }
@@ -321,6 +464,7 @@ class SubmissionResultsMonitor {
               console.log(`❌ Job ${jobId} marked as failed after ${submission.errorCount} errors`);
               submission.status = "failed";
               submission.completedAt = new Date().toISOString();
+              submission.error = `Monitoring error: ${error.message}`;
               problem.jobStatuses[jobId] = "failed";
               hasUpdates = true;
             }

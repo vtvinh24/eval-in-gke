@@ -307,6 +307,42 @@ async function createJobUsingScript(type, repoUrl, config = {}) {
   }
 }
 
+// Helper function to check Kubernetes job status
+async function getKubernetesJobStatus(jobId) {
+  try {
+    const { exec } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+
+    const env = {
+      ...process.env,
+      GCP_CREDENTIALS_JSON: process.env.GCP_CREDENTIALS_JSON_PATH || "./config/service-account.json",
+      GKE_NAMESPACE: process.env.GKE_NAMESPACE || "eval-system",
+    };
+
+    // Get job status from Kubernetes
+    const command = `kubectl get job ${jobId} -n ${env.GKE_NAMESPACE} -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || echo "NotFound"`;
+    const { stdout } = await execAsync(command, { env });
+
+    const status = stdout.trim();
+
+    // Map Kubernetes status to our status
+    switch (status) {
+      case "Complete":
+        return "completed";
+      case "Failed":
+        return "failed";
+      case "NotFound":
+        return "not-found";
+      default:
+        return "running";
+    }
+  } catch (error) {
+    console.warn(`Failed to get Kubernetes job status for ${jobId}:`, error.message);
+    return "unknown";
+  }
+}
+
 // Helper function to fetch submission results from GCS (using new module)
 async function fetchSubmissionResultsFromGCS(jobId, problemId = null) {
   return await submissionMonitor.fetchSubmissionResults(jobId, problemId);
@@ -615,41 +651,94 @@ app.post("/api/problems/:problemId/submissions", authenticate, async (req, res) 
 
     console.log(`Creating submission job for team ${req.user.id}, problem ${problemId}, repo: ${repo_url}`);
 
-    // Create submission job using script
-    const jobResponse = await createJobUsingScript("submission", repo_url, {
-      timeout: 600000, // 10 minutes
-      exec_per_query: 3,
-      problemId: problemId,
-      dockerImage: problem.submissionDockerImage,
-      dockerParams: problem.submissionDockerParams,
-    });
-
-    const jobId = jobResponse.job_id || jobResponse.data?.job_id;
-    console.log(`✓ Job created: ${jobId}`);
-
-    const submission = await dataManager.createSubmission({
+    // Create submission object immediately for persistence
+    const submissionId = `sub_${Date.now()}`;
+    const submission = {
+      id: submissionId,
       problemId: problemId,
       teamId: req.user.id,
       teamName: req.user.name,
       repoUrl: repo_url,
-      jobId: jobId,
-      status: "submitted",
+      jobId: null, // Will be set after job creation
+      status: "creating",
+      submittedAt: new Date().toISOString(),
+      autoScore: null,
+      judgeScores: [],
+      metrics: null,
       replacedSubmission: latestSubmission ? latestSubmission.id : null,
-    });
+    };
 
-    console.log(`✓ Submission ${submission.id} created and saved`);
+    // Store submission immediately so it's visible in UI
+    try {
+      await dataManager.addSubmission(submission);
+      console.log(`✓ Submission ${submission.id} created and stored immediately`);
+    } catch (error) {
+      console.error("Failed to store submission:", error);
+      return res.status(500).json({ error: "Failed to store submission" });
+    }
+
+    // Create submission job using script
+    let jobResponse;
+    let jobId;
+    try {
+      jobResponse = await createJobUsingScript("submission", repo_url, {
+        timeout: 600000, // 10 minutes
+        exec_per_query: 3,
+        problemId: problemId,
+        dockerImage: problem.submissionDockerImage,
+        dockerParams: problem.submissionDockerParams,
+      });
+
+      jobId = jobResponse.job_id || jobResponse.data?.job_id;
+      console.log(`✓ Job created: ${jobId}`);
+
+      // Update submission with job ID and change status to queued
+      await dataManager.updateSubmission(submission.id, {
+        jobId: jobId,
+        status: "queued",
+        startedAt: new Date().toISOString(),
+      });
+
+      // Update problem's job status tracking
+      const data = await loadData();
+      if (!data.problems[problemId].jobStatuses) {
+        data.problems[problemId].jobStatuses = {};
+      }
+      data.problems[problemId].jobStatuses[jobId] = "queued";
+      await saveData(data);
+
+      console.log(`✓ Submission ${submission.id} updated with job ID ${jobId}`);
+    } catch (jobError) {
+      console.error("Failed to create job:", jobError);
+
+      // Update submission status to failed
+      await dataManager.updateSubmission(submission.id, {
+        status: "failed",
+        error: jobError.message,
+        completedAt: new Date().toISOString(),
+      });
+
+      return res.status(500).json({
+        error: "Failed to create evaluation job",
+        submissionId: submission.id,
+        details: jobError.message,
+      });
+    }
+
+    // Get updated submission for response
+    const finalSubmission = await dataManager.getSubmission(submission.id);
 
     res.json({
       message: "Submission created successfully",
       submission: {
-        id: submission.id,
-        problemId: submission.problemId,
-        jobId: submission.jobId,
-        status: submission.status,
-        repoUrl: submission.repoUrl,
-        submittedAt: submission.submittedAt,
+        id: finalSubmission.id,
+        problemId: finalSubmission.problemId,
+        jobId: finalSubmission.jobId,
+        status: finalSubmission.status,
+        repoUrl: finalSubmission.repoUrl,
+        submittedAt: finalSubmission.submittedAt,
         estimatedCompletionTime: "5-15 minutes",
-        replacedSubmission: submission.replacedSubmission,
+        replacedSubmission: finalSubmission.replacedSubmission,
       },
     });
   } catch (error) {
@@ -671,32 +760,85 @@ app.post("/api/submissions", authenticate, async (req, res) => {
   }
 
   try {
-    // Create submission job using script
-    const jobResponse = await createJobUsingScript("submission", repo_url, {
-      timeout: 600000, // 10 minutes
-      exec_per_query: 3,
-    });
-    console.log(`Legacy job created using script`);
-
-    const submission = await dataManager.createSubmission({
+    // Create submission object immediately for persistence
+    const submissionId = `sub_${Date.now()}`;
+    const submission = {
+      id: submissionId,
       problemId: "db-query-optimization", // Default to DB optimization problem
       teamId: req.user.id,
       teamName: req.user.name,
       repoUrl: repo_url,
-      jobId: jobResponse.job_id,
-      status: "submitted",
-    });
+      jobId: null, // Will be set after job creation
+      status: "creating",
+      submittedAt: new Date().toISOString(),
+      autoScore: null,
+      judgeScores: [],
+      metrics: null,
+    };
+
+    // Store submission immediately so it's visible in UI
+    await dataManager.addSubmission(submission);
+    console.log(`✓ Legacy submission ${submission.id} created and stored immediately`);
+
+    // Create submission job using script
+    let jobResponse;
+    let jobId;
+    try {
+      jobResponse = await createJobUsingScript("submission", repo_url, {
+        timeout: 600000, // 10 minutes
+        exec_per_query: 3,
+      });
+
+      jobId = jobResponse.job_id || jobResponse.data?.job_id;
+      console.log(`Legacy job created using script: ${jobId}`);
+
+      // Update submission with job ID and change status to queued
+      await dataManager.updateSubmission(submission.id, {
+        jobId: jobId,
+        status: "queued",
+        startedAt: new Date().toISOString(),
+      });
+
+      // Update legacy job status tracking
+      const data = await loadData();
+      if (!data.jobStatuses) {
+        data.jobStatuses = {};
+      }
+      data.jobStatuses[jobId] = "queued";
+      await saveData(data);
+
+      console.log(`✓ Legacy submission ${submission.id} updated with job ID ${jobId}`);
+    } catch (jobError) {
+      console.error("Failed to create legacy job:", jobError);
+
+      // Update submission status to failed
+      await dataManager.updateSubmission(submission.id, {
+        status: "failed",
+        error: jobError.message,
+        completedAt: new Date().toISOString(),
+      });
+
+      return res.status(500).json({
+        error: "Failed to create evaluation job",
+        submissionId: submission.id,
+        details: jobError.message,
+      });
+    }
+
+    // Get updated submission for response
+    const finalSubmission = await dataManager.getSubmission(submission.id);
 
     res.json({
       message: "Submission created successfully",
       submission: {
-        id: submission.id,
-        jobId: submission.jobId,
-        status: submission.status,
+        id: finalSubmission.id,
+        jobId: finalSubmission.jobId,
+        status: finalSubmission.status,
+        estimatedCompletionTime: "5-15 minutes",
       },
     });
   } catch (error) {
-    console.error("Error creating submission:", error.message);
+    console.error("Error creating legacy submission:", error.message);
     res.status(500).json({ error: "Failed to create submission" });
   }
 });
@@ -1372,6 +1514,65 @@ app.get("/", (req, res) => {
 app.use((error, req, res, next) => {
   console.error("Server error:", error);
   res.status(500).json({ error: "Internal server error" });
+});
+
+// Manual monitoring trigger (for debugging and immediate updates)
+app.post("/api/monitor/trigger", authenticate, async (req, res) => {
+  if (req.user.role !== "host" && req.user.role !== "judge") {
+    return res.status(403).json({ error: "Only hosts and judges can trigger monitoring" });
+  }
+
+  try {
+    console.log(`Manual monitoring triggered by ${req.user.id}`);
+    const hasUpdates = await submissionMonitor.triggerMonitoring(loadData, saveData, calculateScore);
+
+    res.json({
+      message: "Monitoring cycle completed",
+      hasUpdates: hasUpdates,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error triggering monitoring:", error);
+    res.status(500).json({ error: "Failed to trigger monitoring" });
+  }
+});
+
+// Get job status from Kubernetes
+app.get("/api/jobs/:jobId/status", authenticate, async (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    const k8sStatus = await getKubernetesJobStatus(jobId);
+
+    // Also check if we have results
+    const hasResults = await fetchSubmissionResultsFromGCS(jobId);
+
+    res.json({
+      jobId: jobId,
+      kubernetesStatus: k8sStatus,
+      hasResults: !!hasResults,
+      resultsStatus: hasResults ? (hasResults.queries ? "ready" : "processing") : "not-available",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`Error getting job status for ${jobId}:`, error);
+    res.status(500).json({ error: "Failed to get job status" });
+  }
+});
+
+// Get monitoring status
+app.get("/api/monitor/status", authenticate, async (req, res) => {
+  if (req.user.role !== "host" && req.user.role !== "judge") {
+    return res.status(403).json({ error: "Only hosts and judges can view monitoring status" });
+  }
+
+  try {
+    const status = submissionMonitor.getMonitoringStatus();
+    res.json(status);
+  } catch (error) {
+    console.error("Error getting monitoring status:", error);
+    res.status(500).json({ error: "Failed to get monitoring status" });
+  }
 });
 
 // Start server
