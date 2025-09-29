@@ -31,6 +31,7 @@ cat > "${OUT_DIR:-/output}/job_metadata.json" << EOF
   "repo_url": "${REPO_URL:-null}",
   "started_at": "$(date -Iseconds)",
   "node_name": "${HOSTNAME:-unknown}",
+  "trace_file": "${OUT_DIR:-/output}/trace.json",
   "status": "initializing",
   "progress": "0%"
 }
@@ -50,6 +51,7 @@ update_job_status() {
   "started_at": "$(cat "${OUT_DIR:-/output}/job_metadata.json" 2>/dev/null | jq -r '.started_at // "unknown"')",
   "updated_at": "$(date -Iseconds)",
   "node_name": "${HOSTNAME:-unknown}",
+  "trace_file": "${OUT_DIR:-/output}/trace.json",
   "status": "$status",
   "progress": "$progress",
   "error": $error
@@ -62,6 +64,14 @@ EOF
       -H "Content-Type: application/json" \
       -d @"${OUT_DIR:-/output}/job_metadata.json" \
       --max-time 10 --silent || true
+  fi
+}
+
+cleanup_monitor() {
+  if [[ -n "${MONITOR_PID:-}" ]]; then
+    kill "${MONITOR_PID}" 2>/dev/null || true
+    wait "${MONITOR_PID}" 2>/dev/null || true
+    unset MONITOR_PID
   fi
 }
 
@@ -237,6 +247,18 @@ done
 echo "✅ All environment variables validated successfully"
 echo "Mode: $INIT_MODE | Upload: $UPLOAD_ENABLED | Location: ${UPLOAD_LOCATION:-N/A} | Dump: $DUMP_ENABLED"
 
+# Start resource monitor in background
+OUT_DIR="${OUT_DIR:-/output}"
+export OUT_DIR
+MONITOR_TRACE_FILE="${OUT_DIR}/trace.json"
+MONITOR_INTERVAL="${MONITOR_INTERVAL:-5}"
+export MONITOR_INTERVAL
+rm -f "$MONITOR_TRACE_FILE" 2>/dev/null || true
+/usr/local/bin/monitor.sh "$MONITOR_TRACE_FILE" &
+MONITOR_PID=$!
+echo "Resource monitor started (pid $MONITOR_PID) -> $MONITOR_TRACE_FILE"
+trap cleanup_monitor EXIT
+
 # Export key parameters for child scripts
 export INIT_MODE
 export UPLOAD_ENABLED
@@ -406,6 +428,11 @@ EOF
   
   # Load the baseline database dump
   echo "Loading baseline database dump..."
+  echo "Resetting target schema before load..."
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE;"
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA public;"
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "GRANT ALL ON SCHEMA public TO ${POSTGRES_USER};"
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "GRANT ALL ON SCHEMA public TO public;"
   # Filter out role and database creation commands that might conflict with existing setup
   FILTERED_DUMP_PATH="/tmp/filtered_baseline_dump.sql"
   echo "Filtering dump to avoid role and database conflicts..."
@@ -478,6 +505,7 @@ term_handler() {
   echo "Signal received, forwarding to postgres (pid $PG_PID) and exiting..."
   kill -TERM "$PG_PID" 2>/dev/null || true
   wait "$PG_PID" 2>/dev/null || true
+  cleanup_monitor
   exit 0
 }
 trap term_handler SIGTERM SIGINT

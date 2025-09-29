@@ -188,6 +188,12 @@ gsutil ls gs://<bucket-name>/
 gsutil cp gs://<bucket-name>/<job-id>/summary.json ./
 ```
 
+### Resource telemetry
+
+- Every job writes a structured timeline to `trace.json` inside the mounted `/output` directory. Each sample captures host load, Postgres connection counts, database size, and total container CPU/memory usage.
+- Adjust sampling cadence by exporting `MONITOR_INTERVAL` (seconds) before launching the container; defaults to `5`.
+- Job metadata (`job_metadata.json`) now references the trace file path for downstream tooling or log shippers.
+
 ## Configuration Files
 
 ### Environment Files
