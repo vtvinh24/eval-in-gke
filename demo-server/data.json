@@ -1,0 +1,38 @@
+{
+  "users": [
+    {
+      "id": "judge1",
+      "name": "Judge Alice",
+      "role": "judge",
+      "password": "judge123"
+    },
+    {
+      "id": "judge2",
+      "name": "Judge Bob",
+      "role": "judge",
+      "password": "judge123"
+    },
+    {
+      "id": "team1",
+      "name": "Team Alpha",
+      "role": "team",
+      "password": "team123"
+    },
+    {
+      "id": "team2",
+      "name": "Team Beta",
+      "role": "team",
+      "password": "team123"
+    },
+    {
+      "id": "team3",
+      "name": "Team Gamma",
+      "role": "team",
+      "password": "team123"
+    }
+  ],
+  "submissions": [],
+  "evaluations": [],
+  "baselineMetrics": null,
+  "jobStatuses": {}
+}
