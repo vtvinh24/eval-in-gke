@@ -325,48 +325,84 @@ done
 # Handle different initialization modes
 if [ "$INIT_MODE" = "LOAD" ]; then
   # Submission mode: download and load baseline database dump
-  echo "Postgres ready. Downloading baseline database dump..."
+  echo "Postgres ready. Processing baseline database dump..."
   
-  # Download or copy the baseline database dump
+  # Define paths for baseline dump and download marker
   BASELINE_DOWNLOAD_PATH="/tmp/baseline_dump.sql"
+  BASELINE_DOWNLOAD_MARKER="${BASELINE_DOWNLOAD_MARKER:-${OUT_DIR:-/output}/.baseline_downloaded}"
   
-  if [[ "${UPLOAD_LOCATION:-}" == "local" ]]; then
-    # Local mode: copy the file from local path
-    echo "Copying baseline dump from local path: $BASELINE_DUMP_URL"
-    cp "$BASELINE_DUMP_URL" "$BASELINE_DOWNLOAD_PATH"
-  else
-    # GCP mode: use explicit URL or auto-discover
-    if [[ -n "${BASELINE_DUMP_URL:-}" ]]; then
-      # Use explicitly provided URL
-      echo "Using explicitly provided baseline dump URL: $BASELINE_DUMP_URL"
-      curl -L -o "$BASELINE_DOWNLOAD_PATH" "$BASELINE_DUMP_URL"
-    else
-      # Auto-discover the latest baseline dump from db-baseline bucket
-      echo "Auto-discovering latest baseline dump from db-baseline bucket..."
-      
-      # Source the helper script to get functions
-      source /scripts/get-latest-baseline.sh
-      
-      # Get the latest baseline dump URL
-      LATEST_BASELINE_URL=$(get_latest_baseline_url "${BASELINE_JOB_ID:-}")
-      
-      if [ -z "$LATEST_BASELINE_URL" ]; then
-        echo "ERROR: Could not find latest baseline dump" >&2
-        exit 1
-      fi
-      
-      echo "Found latest baseline dump: $LATEST_BASELINE_URL"
-      echo "Downloading baseline dump..."
-      gsutil cp "$LATEST_BASELINE_URL" "$BASELINE_DOWNLOAD_PATH"
+  # Handle force re-download option
+  if [[ "${FORCE_REDOWNLOAD:-false}" == "true" ]]; then
+    echo "Force re-download enabled. Removing existing download marker and dump..."
+    rm -f "$BASELINE_DOWNLOAD_MARKER" "$BASELINE_DOWNLOAD_PATH" 2>/dev/null || true
+  fi
+  
+  # Check if baseline dump is already downloaded and valid
+  if [[ -f "$BASELINE_DOWNLOAD_MARKER" ]] && [[ -f "$BASELINE_DOWNLOAD_PATH" ]] && [[ -s "$BASELINE_DOWNLOAD_PATH" ]]; then
+    echo "Baseline dump already downloaded (marker found). Skipping download."
+    echo "Using existing dump: $(du -h "$BASELINE_DOWNLOAD_PATH" | cut -f1)"
+    
+    # Display marker info if available
+    if command -v jq >/dev/null 2>&1 && [[ -s "$BASELINE_DOWNLOAD_MARKER" ]]; then
+      echo "Download info: $(jq -c . "$BASELINE_DOWNLOAD_MARKER" 2>/dev/null || cat "$BASELINE_DOWNLOAD_MARKER")"
     fi
-  fi
+  else
+    echo "Downloading baseline database dump..."
   
-  if [ ! -f "$BASELINE_DOWNLOAD_PATH" ] || [ ! -s "$BASELINE_DOWNLOAD_PATH" ]; then
-    echo "ERROR: Failed to obtain baseline dump or file is empty" >&2
-    exit 1
+    if [[ "${UPLOAD_LOCATION:-}" == "local" ]]; then
+      # Local mode: copy the file from local path
+      echo "Copying baseline dump from local path: $BASELINE_DUMP_URL"
+      cp "$BASELINE_DUMP_URL" "$BASELINE_DOWNLOAD_PATH"
+    else
+      # GCP mode: use explicit URL or auto-discover
+      if [[ -n "${BASELINE_DUMP_URL:-}" ]]; then
+        # Use explicitly provided URL
+        echo "Using explicitly provided baseline dump URL: $BASELINE_DUMP_URL"
+        curl -L -o "$BASELINE_DOWNLOAD_PATH" "$BASELINE_DUMP_URL"
+      else
+        # Auto-discover the latest baseline dump from db-baseline bucket
+        echo "Auto-discovering latest baseline dump from db-baseline bucket..."
+        
+        # Source the helper script to get functions
+        source /scripts/get-latest-baseline.sh
+        
+        # Authenticate with GCP before trying to access the bucket
+        authenticate_gcp
+        
+        # Get the latest baseline dump URL
+        LATEST_BASELINE_URL=$(get_latest_baseline_url "${BASELINE_JOB_ID:-}")
+        
+        if [ -z "$LATEST_BASELINE_URL" ]; then
+          echo "ERROR: Could not find latest baseline dump" >&2
+          exit 1
+        fi
+        
+        echo "Found latest baseline dump: $LATEST_BASELINE_URL"
+        echo "Downloading baseline dump..."
+        gsutil cp "$LATEST_BASELINE_URL" "$BASELINE_DOWNLOAD_PATH"
+      fi
+    fi
+    
+    if [ ! -f "$BASELINE_DOWNLOAD_PATH" ] || [ ! -s "$BASELINE_DOWNLOAD_PATH" ]; then
+      echo "ERROR: Failed to obtain baseline dump or file is empty" >&2
+      exit 1
+    fi
+    
+    echo "Baseline dump downloaded successfully. Size: $(du -h "$BASELINE_DOWNLOAD_PATH" | cut -f1)"
+    
+    # Create download marker with metadata
+    cat > "$BASELINE_DOWNLOAD_MARKER" << EOF
+{
+  "downloaded_at": "$(date -Iseconds)",
+  "dump_path": "$BASELINE_DOWNLOAD_PATH",
+  "dump_size": "$(stat -c%s "$BASELINE_DOWNLOAD_PATH" 2>/dev/null || echo 0)",
+  "source_url": "${LATEST_BASELINE_URL:-${BASELINE_DUMP_URL:-local}}",
+  "job_id": "$JOB_ID"
+}
+EOF
+    chmod 0666 "$BASELINE_DOWNLOAD_MARKER" 2>/dev/null || true
+    echo "Download marker created: $BASELINE_DOWNLOAD_MARKER"
   fi
-  
-  echo "Baseline dump downloaded successfully. Size: $(du -h "$BASELINE_DOWNLOAD_PATH" | cut -f1)"
   
   # Load the baseline database dump
   echo "Loading baseline database dump..."

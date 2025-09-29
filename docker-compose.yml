@@ -79,6 +79,8 @@ services:
       - BASELINE_DUMP_URL=${BASELINE_DUMP_URL:-}
       - BASELINE_JOB_ID=${BASELINE_JOB_ID:-}
       - BASELINE_BUCKET=${BASELINE_BUCKET:-}
+      - BASELINE_DOWNLOAD_MARKER=${BASELINE_DOWNLOAD_MARKER:-}
+      - FORCE_REDOWNLOAD=${FORCE_REDOWNLOAD:-}
       # --- Initialization mode ---
       - INIT_MODE=LOAD
       # --- Entrypoint and migration ---
@@ -133,6 +135,9 @@ services:
       # --- Submission-specific settings (used when INIT_MODE=LOAD) ---
       - BASELINE_DUMP_URL=${BASELINE_DUMP_URL:-}
       - BASELINE_JOB_ID=${BASELINE_JOB_ID:-}
+      - BASELINE_BUCKET=${BASELINE_BUCKET:-}
+      - BASELINE_DOWNLOAD_MARKER=${BASELINE_DOWNLOAD_MARKER:-}
+      - FORCE_REDOWNLOAD=${FORCE_REDOWNLOAD:-}
       - SUBMISSION_MARKER=${SUBMISSION_MARKER}
       - QUERIES_DIR=${QUERIES_DIR}
       - REPO_URL=${REPO_URL}
