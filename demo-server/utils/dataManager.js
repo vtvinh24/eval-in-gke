@@ -8,6 +8,8 @@ class DataManager {
     this.problems = null;
     this.baselines = null;
     this.submissions = null;
+    // Ensure directories exist when DataManager is created
+    this.ensureDirectories().catch(console.error);
   }
 
   async loadUsers() {
@@ -32,6 +34,7 @@ class DataManager {
   }
 
   async saveUsers() {
+    await this.ensureDirectoryExists(this.dataDir);
     await fs.writeFile(path.join(this.dataDir, "users.json"), JSON.stringify({ users: this.users }, null, 2));
   }
 
@@ -50,6 +53,7 @@ class DataManager {
   }
 
   async saveProblems() {
+    await this.ensureDirectoryExists(this.dataDir);
     await fs.writeFile(path.join(this.dataDir, "problems.json"), JSON.stringify(this.problems, null, 2));
   }
 
@@ -68,6 +72,7 @@ class DataManager {
   }
 
   async saveBaselines() {
+    await this.ensureDirectoryExists(this.dataDir);
     await fs.writeFile(path.join(this.dataDir, "baselines.json"), JSON.stringify(this.baselines, null, 2));
   }
 
@@ -86,6 +91,7 @@ class DataManager {
   }
 
   async saveSubmissions() {
+    await this.ensureDirectoryExists(this.dataDir);
     await fs.writeFile(path.join(this.dataDir, "submissions.json"), JSON.stringify(this.submissions, null, 2));
   }
 
@@ -222,11 +228,7 @@ class DataManager {
 
       // Create output directory for this submission
       const outputDir = path.join(this.dataDir, "outputs", submissionId);
-      try {
-        await fs.mkdir(outputDir, { recursive: true });
-      } catch (error) {
-        // Directory might already exist, ignore error
-      }
+      await this.ensureDirectoryExists(outputDir);
 
       return submission;
     } catch (error) {
@@ -303,16 +305,21 @@ class DataManager {
     return textExtensions.includes(ext);
   }
 
+  // Helper method to ensure directory exists
+  async ensureDirectoryExists(dirPath) {
+    try {
+      await fs.access(dirPath);
+    } catch (error) {
+      await fs.mkdir(dirPath, { recursive: true });
+    }
+  }
+
   // Initialize directories
   async ensureDirectories() {
     const directories = [this.dataDir, path.join(this.dataDir, "outputs"), path.join(this.dataDir, "submissions"), path.join(this.dataDir, "problems")];
 
     for (const dir of directories) {
-      try {
-        await fs.access(dir);
-      } catch (error) {
-        await fs.mkdir(dir, { recursive: true });
-      }
+      await this.ensureDirectoryExists(dir);
     }
   }
 }

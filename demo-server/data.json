@@ -37,15 +37,11 @@
       "password": "team123"
     }
   ],
-  "submissions": [],
-  "evaluations": [],
-  "baselineMetrics": null,
-  "jobStatuses": {},
   "problems": {
     "db-query-optimization": {
       "id": "db-query-optimization",
       "title": "Database Query Optimization Challenge",
-      "description": "Large-scale analytics and OLTP systems often encounter SQL queries that become prohibitively slow as data volume grows (100M+ rows).",
+      "description": "Large-scale analytics and OLTP systems often encounter SQL queries that become prohibitively slow as data volume grows (100M+ rows). This challenge simulates a real-world scenario where you must optimize a slow SQL workload to run efficiently on a single machine.",
       "domain": "Databases, query optimization, systems engineering, data engineering",
       "constraints": {
         "database": "PostgreSQL 14",
@@ -332,5 +328,9 @@
       },
       "jobStatuses": {}
     }
-  }
+  },
+  "submissions": [],
+  "evaluations": [],
+  "baselineMetrics": null,
+  "jobStatuses": {}
 }
