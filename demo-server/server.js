@@ -1010,19 +1010,21 @@ app.post("/api/submissions/:id/judge", authenticate, async (req, res) => {
     const problemId = submission.problemId;
     const problems = await dataManager.loadProblems();
     const problem = problemId ? problems[problemId] : null;
-    const weights = problem?.scoringWeights || {
+
+    // Define weights for judge criteria (different from automated scoring weights)
+    const judgeWeights = {
       correctness: 40, // 40% weight
       performance: 30, // 30% weight
       codeQuality: 20, // 20% weight
       documentation: 10, // 10% weight
     };
 
-    // Calculate weighted total score
+    // Calculate weighted total score using judge-specific weights
     const weightedScore =
-      (Number(correctness) * weights.correctness) / 100 +
-      (Number(performance) * weights.performance) / 100 +
-      (Number(codeQuality) * weights.codeQuality) / 100 +
-      (Number(documentation) * weights.documentation) / 100;
+      (Number(correctness) * judgeWeights.correctness) / 100 +
+      (Number(performance) * judgeWeights.performance) / 100 +
+      (Number(codeQuality) * judgeWeights.codeQuality) / 100 +
+      (Number(documentation) * judgeWeights.documentation) / 100;
 
     const judgeScore = {
       judgeId: req.user.id,
@@ -1033,7 +1035,7 @@ app.post("/api/submissions/:id/judge", authenticate, async (req, res) => {
         codeQuality: Number(codeQuality),
         documentation: Number(documentation),
       },
-      weights: weights,
+      weights: judgeWeights, // Use judge-specific weights
       totalScore: Math.round(weightedScore * 100) / 100, // Round to 2 decimal places
       comments: comments || "",
       submittedAt: new Date().toISOString(),
@@ -1050,6 +1052,7 @@ app.post("/api/submissions/:id/judge", authenticate, async (req, res) => {
         // If totalScore is null or missing, calculate it from nested scores and weights
         if (score.totalScore === null || score.totalScore === undefined) {
           if (score.scores && score.weights) {
+            // Use the weights stored with the score for recalculation
             const weightedScore =
               (Number(score.scores.correctness || 0) * (score.weights.correctness || 0)) / 100 +
               (Number(score.scores.performance || 0) * (score.weights.performance || 0)) / 100 +
@@ -1057,7 +1060,14 @@ app.post("/api/submissions/:id/judge", authenticate, async (req, res) => {
               (Number(score.scores.documentation || 0) * (score.weights.documentation || 0)) / 100;
             score.totalScore = Math.round(weightedScore * 100) / 100;
           } else {
-            score.totalScore = 0; // Fallback if structure is invalid
+            // Fallback: use default judge weights if no weights stored
+            const defaultJudgeWeights = { correctness: 40, performance: 30, codeQuality: 20, documentation: 10 };
+            const weightedScore =
+              (Number(score.scores.correctness || 0) * defaultJudgeWeights.correctness) / 100 +
+              (Number(score.scores.performance || 0) * defaultJudgeWeights.performance) / 100 +
+              (Number(score.scores.codeQuality || 0) * defaultJudgeWeights.codeQuality) / 100 +
+              (Number(score.scores.documentation || 0) * defaultJudgeWeights.documentation) / 100;
+            score.totalScore = Math.round(weightedScore * 100) / 100;
           }
         }
         return score.totalScore;
