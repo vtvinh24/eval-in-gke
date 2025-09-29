@@ -134,6 +134,41 @@ Disallowed: precomputing answer tables that directly correspond to the benchmark
 - External/remote DBs, distributed sharding
 - Modifying judge harness
 
+## Implementation Configuration (Repository Default)
+
+### Runtime targets
+
+- **Local Docker Compose** (`docker compose --profile baseline|submission|default up --build`)
+
+  - Image: `eval-db:latest` built from the included `Dockerfile` (based on `postgres:14` with Google Cloud SDK, `jq`, `curl`, `git`, and helper scripts baked in).
+  - Ports: baseline & default services expose PostgreSQL on `${DB_PORT:-5432}`; submission profile maps to host `${DB_PORT:-5433}` to avoid collisions.
+  - Persistent artifacts: `./out` on the host is mounted to `/output` inside the container for logs, dumps, and query timing summaries.
+  - Key environment defaults (see `baseline.gcp.env` / `submission.gcp.env`):
+    - `USERS_COUNT=50000`, `DEVICES_COUNT=50000`, `EVENTS_COUNT=1000000` when generating baseline data.
+    - Query executor cadence: `EXEC_PER_QUERY=5`, `EXEC_INTERVAL=1000ms`, `EXEC_INTERVAL_Q=2000ms`, `EXEC_TIMEOUT=60000ms`.
+    - Migration timeout guard: `TIMEOUT=10000ms`, wait-for-ready `INIT_WAIT_TIMEOUT=300s`.
+    - Output markers: `/output/baseline_done` or `/output/submission_done` depending on mode.
+    - Submission profile expects `REPO_URL` (defaults to `https://github.com/vtvinh24/db-submission`) and pulls queries from `/submission`.
+
+- **GKE baseline/submission jobs** (see `k8s/job-baseline.yml` and `k8s/job-submission.yml`)
+  - Container image: `us-docker.pkg.dev/hackathon-demo-473203/eval/eval-db:latest`.
+  - Resource envelopes per pod: `requests` = 300m CPU / 512Mi memory; `limits` = 800m CPU / 1Gi memory.
+  - Pods mount an ephemeral `emptyDir` at `/output` for intermediate artifacts; Cloud Storage uploads are enabled via env flags.
+  - Baseline jobs run with `INIT_MODE=CREATE`, `QUERIES_DIR=/source`, and propagate `{USERS_COUNT, DEVICES_COUNT, EVENTS_COUNT}` placeholders; submission jobs use `INIT_MODE=LOAD`, `QUERIES_DIR=/submission`, `REPO_URL={REPO_URL}`, and reuse the published baseline dump at `https://storage.googleapis.com/eval-artifacts-hackathon-demo-473203/db_dump.sql`.
+
+### Cluster & platform defaults
+
+- `scripts/deploy-gke.sh` provisions a **GKE cluster** with machine type `e2-small`, initial size `--num-nodes=3`, and autoscaling enabled (`--min-nodes=1`, `--max-nodes=2`). Workload Identity is configured so the `eval-system/eval-sa` Kubernetes service account can impersonate `cloudrun-eval-sa@hackathon-demo-473203.iam.gserviceaccount.com`.
+- Config and secrets are provided via `k8s/config.yml` and `k8s/namespace.yml`:
+  - ConfigMap (`eval-config`) defines core DB settings (`POSTGRES_USER=postgres`, `POSTGRES_DB=demo_db`), dump locations (`/output/db_dump.sql`), execution pacing, and the target GCS bucket `eval-artifacts-hackathon-demo-473203`.
+  - Secret (`eval-secrets`) stores `POSTGRES_PASSWORD` and the base64-encoded service-account JSON required for GCS uploads/downloads.
+- Jobs automatically clean up after finishing via `ttlSecondsAfterFinished: 3600`.
+
+### Query layout in this repo
+
+- Instead of a monolithic `optimize.sql`, each benchmark query is provided as an individual file under `scripts/source/Q1.sql` … `Q10.sql` (and mirrored under `scripts/submission/`). Runner scripts iterate over these files using the configured `QUERIES_DIR`.
+- The logical definitions of **q1–q3** remain identical to the descriptions above; the split files simply improve benchmarking ergonomics.
+
 ## Deliverables
 
 - `migration.sql` (schema/index/materialized view changes)
