@@ -2,3 +2,4 @@
 *.env
 /out
 k8s/config.yml
+/demo-server/node_modules
