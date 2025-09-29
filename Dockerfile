@@ -32,7 +32,8 @@ COPY scripts/submission /submission
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY scripts/query-runner.sh /usr/local/bin/query-runner.sh
 COPY scripts/dump-db.sh /usr/local/bin/dump-db.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/query-runner.sh /usr/local/bin/dump-db.sh
+COPY scripts/get-latest-baseline.sh /scripts/get-latest-baseline.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/query-runner.sh /usr/local/bin/dump-db.sh /scripts/get-latest-baseline.sh
 
 EXPOSE 5432
 

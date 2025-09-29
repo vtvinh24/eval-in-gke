@@ -181,14 +181,15 @@ elif [[ "$INIT_MODE" == "LOAD" ]]; then
   # Submission mode validation
   echo "Validating submission mode settings..."
   
-  if [[ -z "${BASELINE_DUMP_URL:-}" ]]; then
-    echo "ERROR: BASELINE_DUMP_URL is required for submission mode" >&2
+  # BASELINE_DUMP_URL is required for local mode, optional for GCP mode (auto-discovery)
+  if [[ "${UPLOAD_LOCATION:-}" == "local" ]] && [[ -z "${BASELINE_DUMP_URL:-}" ]]; then
+    echo "ERROR: BASELINE_DUMP_URL is required for submission mode when using local storage" >&2
     exit 1
   fi
   
-  # Validate URL format (skip validation for local mode)
-  if [[ "${UPLOAD_LOCATION:-}" != "local" ]] && ! [[ "$BASELINE_DUMP_URL" =~ ^https?:// ]]; then
-    echo "ERROR: BASELINE_DUMP_URL must be a valid HTTP/HTTPS URL" >&2
+  # Validate URL format for explicitly provided URLs
+  if [[ -n "${BASELINE_DUMP_URL:-}" ]] && [[ "${UPLOAD_LOCATION:-}" != "local" ]] && ! [[ "$BASELINE_DUMP_URL" =~ ^https?:// ]]; then
+    echo "ERROR: BASELINE_DUMP_URL must be a valid HTTP/HTTPS URL when provided" >&2
     exit 1
   fi
   
@@ -334,9 +335,30 @@ if [ "$INIT_MODE" = "LOAD" ]; then
     echo "Copying baseline dump from local path: $BASELINE_DUMP_URL"
     cp "$BASELINE_DUMP_URL" "$BASELINE_DOWNLOAD_PATH"
   else
-    # GCP mode: download from URL
-    echo "Downloading baseline dump from: $BASELINE_DUMP_URL"
-    curl -L -o "$BASELINE_DOWNLOAD_PATH" "$BASELINE_DUMP_URL"
+    # GCP mode: use explicit URL or auto-discover
+    if [[ -n "${BASELINE_DUMP_URL:-}" ]]; then
+      # Use explicitly provided URL
+      echo "Using explicitly provided baseline dump URL: $BASELINE_DUMP_URL"
+      curl -L -o "$BASELINE_DOWNLOAD_PATH" "$BASELINE_DUMP_URL"
+    else
+      # Auto-discover the latest baseline dump from db-baseline bucket
+      echo "Auto-discovering latest baseline dump from db-baseline bucket..."
+      
+      # Source the helper script to get functions
+      source /scripts/get-latest-baseline.sh
+      
+      # Get the latest baseline dump URL
+      LATEST_BASELINE_URL=$(get_latest_baseline_url "${BASELINE_JOB_ID:-}")
+      
+      if [ -z "$LATEST_BASELINE_URL" ]; then
+        echo "ERROR: Could not find latest baseline dump" >&2
+        exit 1
+      fi
+      
+      echo "Found latest baseline dump: $LATEST_BASELINE_URL"
+      echo "Downloading baseline dump..."
+      gsutil cp "$LATEST_BASELINE_URL" "$BASELINE_DOWNLOAD_PATH"
+    fi
   fi
   
   if [ ! -f "$BASELINE_DOWNLOAD_PATH" ] || [ ! -s "$BASELINE_DOWNLOAD_PATH" ]; then

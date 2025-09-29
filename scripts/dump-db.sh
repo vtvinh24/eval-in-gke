@@ -24,11 +24,58 @@ authenticate_gcp() {
   fi
 }
 
+# Function to create GCS bucket if it doesn't exist
+create_bucket_if_not_exists() {
+  local bucket_name="$1"
+  
+  echo "Checking if bucket gs://$bucket_name exists..."
+  
+  # Extract project ID from service account credentials
+  local project_id
+  if [ -f "$GCP_CREDENTIALS_JSON" ]; then
+    project_id=$(jq -r '.project_id' "$GCP_CREDENTIALS_JSON")
+  else
+    project_id=$(echo "$GCP_CREDENTIALS_JSON" | jq -r '.project_id')
+  fi
+  
+  if [ -z "$project_id" ] || [ "$project_id" = "null" ]; then
+    echo "ERROR: Could not extract project_id from GCP credentials" >&2
+    exit 1
+  fi
+  
+  echo "Using project ID: $project_id"
+  
+  # Set the default project for gsutil
+  gcloud config set project "$project_id" >/dev/null 2>&1
+  
+  # Check if bucket exists
+  if gsutil ls -b "gs://$bucket_name" &>/dev/null; then
+    echo "Bucket gs://$bucket_name already exists"
+  else
+    echo "Creating bucket gs://$bucket_name..."
+    
+    # Create bucket with appropriate region and project
+    if gsutil mb -p "$project_id" -l us-central1 "gs://$bucket_name"; then
+      echo "Successfully created bucket gs://$bucket_name"
+      
+      # Set bucket permissions for public read access to dumps
+      echo "Setting bucket permissions for public read access..."
+      gsutil iam ch allUsers:objectViewer "gs://$bucket_name" || {
+        echo "WARNING: Failed to set public read permissions on bucket"
+      }
+    else
+      echo "ERROR: Failed to create bucket gs://$bucket_name" >&2
+      exit 1
+    fi
+  fi
+}
+
 # Function to upload entire output directory
 upload_output_directory() {
-  local bucket_path="$1"
+  local bucket_name="$1"
+  local bucket_path="$2"
   
-  echo "Uploading entire output directory to gs://$GCP_BUCKET/$bucket_path/ ..."
+  echo "Uploading entire output directory to gs://$bucket_name/$bucket_path/ ..."
   
   # Create a timestamp for this upload
   local upload_timestamp=$(date -u +%Y%m%d-%H%M%S)
@@ -36,11 +83,11 @@ upload_output_directory() {
   # Upload all files in output directory recursively
   if [ -d "$OUT_DIR" ]; then
     # Sync the entire output directory to GCS
-    gsutil -m rsync -r -C "$OUT_DIR" "gs://$GCP_BUCKET/$bucket_path/"
+    gsutil -m rsync -r -C "$OUT_DIR" "gs://$bucket_name/$bucket_path/"
     echo "Output directory upload complete."
     
     # Create a completion marker in GCS
-    echo "$upload_timestamp" | gsutil cp - "gs://$GCP_BUCKET/$bucket_path/upload_complete.txt"
+    echo "$upload_timestamp" | gsutil cp - "gs://$bucket_name/$bucket_path/upload_complete.txt"
   else
     echo "WARNING: Output directory $OUT_DIR does not exist"
   fi
@@ -83,10 +130,11 @@ if [ "$UPLOAD_ENABLED" != "true" ]; then
   exit 0
 fi
 
-# Determine bucket path based on mode and job ID
+# Determine bucket and path based on mode and job ID
 if [ "$INIT_MODE" = "CREATE" ]; then
-  # Baseline mode: upload everything to baseline folder
-  BUCKET_PATH="baseline/${JOB_ID:-$(date +%Y%m%d-%H%M%S)}"
+  # Baseline mode: use db-baseline bucket
+  BUCKET_NAME="db-baseline"
+  BUCKET_PATH="${JOB_ID:-$(date +%Y%m%d-%H%M%S)}"
   
   echo "=== Baseline Mode: Creating dump and uploading all outputs ==="
   
@@ -99,7 +147,8 @@ if [ "$INIT_MODE" = "CREATE" ]; then
   
   if [ "$UPLOAD_LOCATION" = "gcp" ]; then
     authenticate_gcp
-    upload_output_directory "$BUCKET_PATH"
+    create_bucket_if_not_exists "$BUCKET_NAME"
+    upload_output_directory "$BUCKET_NAME" "$BUCKET_PATH"
   elif [ "$UPLOAD_LOCATION" = "local" ]; then
     echo "Local storage mode - outputs remain in $OUT_DIR"
   else
@@ -107,8 +156,10 @@ if [ "$INIT_MODE" = "CREATE" ]; then
   fi
   
 elif [ "$INIT_MODE" = "LOAD" ]; then
-  # Submission mode: upload only results, no dump by default
-  BUCKET_PATH="submissions/${JOB_ID:-$(date +%Y%m%d-%H%M%S)}"
+  # Submission mode: use db-submission-{job_id} bucket
+  SUBMISSION_ID="${JOB_ID:-$(date +%Y%m%d-%H%M%S)}"
+  BUCKET_NAME="db-submission-${SUBMISSION_ID}"
+  BUCKET_PATH="results"
   
   echo "=== Submission Mode: Uploading results only ==="
   
@@ -126,7 +177,8 @@ elif [ "$INIT_MODE" = "LOAD" ]; then
   
   if [ "$UPLOAD_LOCATION" = "gcp" ]; then
     authenticate_gcp
-    upload_output_directory "$BUCKET_PATH"
+    create_bucket_if_not_exists "$BUCKET_NAME"
+    upload_output_directory "$BUCKET_NAME" "$BUCKET_PATH"
   elif [ "$UPLOAD_LOCATION" = "local" ]; then
     echo "Local storage mode - outputs remain in $OUT_DIR"
   else
