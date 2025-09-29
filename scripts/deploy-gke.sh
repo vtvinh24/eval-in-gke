@@ -194,7 +194,7 @@ build_and_push_image() {
     
     # Build the main eval image
     echo "Building eval-db image..."
-    docker build -t "${IMAGE_REGISTRY}/eval-db:latest" ..
+    docker build -t "${IMAGE_REGISTRY}/eval-db:latest" .
     
     # Push to Artifact Registry
     echo "Pushing image to Artifact Registry..."
@@ -209,7 +209,7 @@ deploy_k8s_resources() {
     
     # Create namespace and service account
     echo "Applying namespace and service account..."
-    kubectl apply -f ../k8s/namespace.yml
+    kubectl apply -f k8s/namespace.yml
     
     # Set up Workload Identity binding
     echo "Setting up Workload Identity..."
@@ -231,11 +231,11 @@ deploy_k8s_resources() {
     GCP_CREDENTIALS_B64=$(echo -n "$GCP_CREDENTIALS_JSON" | base64 -w 0)
     
     # Update config.yml with encoded secrets
-    sed -i "s|<base64-encoded-password>|$POSTGRES_PASSWORD_B64|g" ../k8s/config.yml
-    sed -i "s|<base64-encoded-service-account-json>|$GCP_CREDENTIALS_B64|g" ../k8s/config.yml
+    sed -i "s|<base64-encoded-password>|$POSTGRES_PASSWORD_B64|g" k8s/config.yml
+    sed -i "s|<base64-encoded-service-account-json>|$GCP_CREDENTIALS_B64|g" k8s/config.yml
     
     # Apply config and secrets
-    kubectl apply -f ../k8s/config.yml
+    kubectl apply -f k8s/config.yml
     
     echo -e "${GREEN}✓ Kubernetes resources deployed$NC"
 }
@@ -249,13 +249,13 @@ test_deployment() {
     
     # Create job from template
     sed "s/{JOB_ID}/$JOB_NAME/g; s/{USERS_COUNT}/1000/g; s/{DEVICES_COUNT}/1000/g; s/{EVENTS_COUNT}/10000/g" \
-        ../k8s/job-baseline.yml > "/tmp/${JOB_NAME}.yml"
+        k8s/job-baseline.yml > "/tmp/${JOB_NAME}.yml"
     
     echo "Creating test job: $JOB_NAME"
     kubectl apply -f "/tmp/${JOB_NAME}.yml"
     
     # Wait a moment and check status
-    sleep 5
+    sleep 10
     echo "Job status:"
     kubectl get job "$JOB_NAME" -n eval-system
     
@@ -278,7 +278,7 @@ show_usage_examples() {
     cat << 'EOF'
 JOB_ID="baseline-$(date +%Y%m%d-%H%M%S)"
 sed "s/{JOB_ID}/$JOB_ID/g; s/{USERS_COUNT}/50000/g; s/{DEVICES_COUNT}/50000/g; s/{EVENTS_COUNT}/1000000/g" \
-    ../k8s/job-baseline.yml | kubectl apply -f -
+    k8s/job-baseline.yml | kubectl apply -f -
 EOF
     echo ""
     echo -e "${YELLOW}2. Create a submission job manually:$NC"
@@ -286,7 +286,7 @@ EOF
 JOB_ID="submission-$(date +%Y%m%d-%H%M%S)"
 REPO_URL="https://github.com/your-username/db-submission"
 sed "s/{JOB_ID}/$JOB_ID/g; s|{REPO_URL}|$REPO_URL|g" \
-    ../k8s/job-submission.yml | kubectl apply -f -
+    k8s/job-submission.yml | kubectl apply -f -
 EOF
     echo ""
     echo -e "${YELLOW}3. Monitor jobs:$NC"
