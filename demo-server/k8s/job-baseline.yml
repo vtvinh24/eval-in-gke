@@ -4,6 +4,7 @@ metadata:
   name: eval-baseline-{JOB_ID}
   namespace: eval-system
 spec:
+  activeDeadlineSeconds: 3600 # 60 minutes max runtime (baseline takes longer)
   template:
     spec:
       restartPolicy: Never
@@ -34,19 +35,19 @@ spec:
             - name: DB_PORT
               value: "5432"
             - name: TIMEOUT
-              value: "10000"
+              value: "15000"
             - name: EXEC_PER_QUERY
-              value: "5"
+              value: "3"
             - name: EXEC_INTERVAL
-              value: "1000"
+              value: "500"
             - name: EXEC_INTERVAL_Q
-              value: "2000"
+              value: "1000"
             - name: EXEC_TIMEOUT
-              value: "60000"
+              value: "45000"
             - name: OUT_DIR
               value: "/output"
             - name: INIT_WAIT_TIMEOUT
-              value: "300"
+              value: "180"
             - name: UPLOAD_ENABLED
               value: "true"
             - name: UPLOAD_LOCATION
@@ -82,4 +83,4 @@ spec:
             limits:
               cpu: 900m
               memory: 1200Mi
-  backoffLimit: 3
+  backoffLimit: 0
