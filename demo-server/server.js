@@ -271,16 +271,6 @@ async function createJobUsingScript(type, repoUrl, config = {}) {
     const { promisify } = require("util");
     const execAsync = promisify(exec);
 
-    // Set up environment variables for the script
-    const env = {
-      ...process.env,
-      GCP_CREDENTIALS_JSON: process.env.GCP_CREDENTIALS_JSON_PATH || "./config/service-account.json",
-      GKE_NAMESPACE: process.env.GKE_NAMESPACE || "default",
-      JOB_NAME_PREFIX: config.jobNamePrefix || "eval",
-      EXEC_PER_QUERY: config.exec_per_query || "3",
-      TIMEOUT_SECONDS: config.timeout ? Math.floor(config.timeout / 1000) : "600",
-    };
-
     // Get the script path
     const scriptPath = path.resolve(__dirname, process.env.CREATE_JOB_SCRIPT || "./scripts/create-job.sh");
 
@@ -291,38 +281,49 @@ async function createJobUsingScript(type, repoUrl, config = {}) {
       throw new Error(`Create job script not found at: ${scriptPath}`);
     }
 
-    // Build command
-    let command = `bash "${scriptPath}" "${type}"`;
-    if (repoUrl) {
-      command += ` "${repoUrl}"`;
+    // Build command for non-interactive mode
+    let command = `bash "${scriptPath}"`;
+
+    if (type === "baseline") {
+      const usersCount = config.users_count || 50000;
+      const devicesCount = config.devices_count || 50000;
+      const eventsCount = config.events_count || 1000000;
+      command += ` baseline "" ${usersCount} ${devicesCount} ${eventsCount}`;
+    } else if (type === "submission") {
+      if (!repoUrl) {
+        throw new Error("Repository URL is required for submission jobs");
+      }
+      command += ` submission "${repoUrl}"`;
+    } else {
+      throw new Error(`Invalid job type: ${type}. Must be 'baseline' or 'submission'`);
     }
 
     console.log(`Creating ${type} job using script: ${command}`);
-    console.log(`Environment: GKE_NAMESPACE=${env.GKE_NAMESPACE}, TIMEOUT_SECONDS=${env.TIMEOUT_SECONDS}`);
 
     // Execute the create-job.sh script with timeout
     const { stdout, stderr } = await execAsync(command, {
-      env,
-      timeout: 60000, // 60 second timeout for script execution
+      timeout: 120000, // 2 minute timeout for script execution
+      cwd: __dirname, // Ensure we're in the right directory for relative paths
     });
 
-    // Log script output for debugging
+    // Log script stderr for debugging (non-error output may go to stderr)
     if (stderr && stderr.trim()) {
       console.log(`Script stderr: ${stderr.trim()}`);
     }
 
     // Parse the job ID from script output
-    // The script should output the job ID as the last line
+    // The script should output the job ID as the last line in non-interactive mode
     const outputLines = stdout.trim().split("\n");
     const jobId = outputLines[outputLines.length - 1];
 
-    if (jobId && jobId.length > 0 && !jobId.startsWith("Error:")) {
+    if (jobId && jobId.length > 0 && !jobId.startsWith("ERROR:")) {
       console.log(`✓ Job created successfully: ${jobId}`);
 
       // Verify job exists in Kubernetes
       try {
-        const verifyCommand = `kubectl get job "${jobId}" -n "${env.GKE_NAMESPACE}" --no-headers 2>/dev/null`;
-        await execAsync(verifyCommand, { env });
+        const namespace = process.env.GKE_NAMESPACE || "eval-system";
+        const verifyCommand = `kubectl get job "${jobId}" -n "${namespace}" --no-headers 2>/dev/null`;
+        await execAsync(verifyCommand);
         console.log(`✓ Job ${jobId} verified in Kubernetes`);
       } catch (verifyError) {
         console.warn(`⚠ Could not verify job ${jobId} in Kubernetes:`, verifyError.message);
@@ -331,11 +332,11 @@ async function createJobUsingScript(type, repoUrl, config = {}) {
       return {
         job_id: jobId,
         type: type,
-        namespace: env.GKE_NAMESPACE,
+        namespace: process.env.GKE_NAMESPACE || "eval-system",
         created_at: new Date().toISOString(),
       };
     } else {
-      const errorMsg = jobId && jobId.startsWith("Error:") ? jobId : "Script did not return a valid job ID";
+      const errorMsg = jobId && jobId.startsWith("ERROR:") ? jobId : "Script did not return a valid job ID";
       throw new Error(errorMsg);
     }
   } catch (error) {

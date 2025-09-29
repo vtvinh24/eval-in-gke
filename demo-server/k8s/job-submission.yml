@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eval-submission-{JOB_ID}
+  namespace: eval-system
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: submission-evaluator
+          image: us-docker.pkg.dev/hackathon-demo-473203/eval/eval-db:latest
+          env:
+            - name: JOB_TYPE
+              value: "submission"
+            - name: INIT_MODE
+              value: "LOAD"
+            - name: REPO_URL
+              value: "{REPO_URL}"
+            - name: JOB_ID
+              value: "{JOB_ID}"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "eval_db"
+            - name: POSTGRES_HOST
+              value: "localhost"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: DB_PORT
+              value: "5433"
+            - name: BASELINE_BUCKET
+              value: "db-baseline"
+            - name: BASELINE_DOWNLOAD_MARKER
+              value: "/output/.baseline_downloaded"
+            - name: FORCE_REDOWNLOAD
+              value: "false"
+            - name: SUBMISSION_MARKER
+              value: "/output/submission_done"
+            - name: QUERIES_DIR
+              value: "/submission"
+            - name: TIMEOUT
+              value: "10000"
+            - name: EXEC_PER_QUERY
+              value: "5"
+            - name: EXEC_INTERVAL
+              value: "1000"
+            - name: EXEC_INTERVAL_Q
+              value: "2000"
+            - name: EXEC_TIMEOUT
+              value: "60000"
+            - name: OUT_DIR
+              value: "/output"
+            - name: INIT_WAIT_TIMEOUT
+              value: "300"
+            - name: UPLOAD_ENABLED
+              value: "true"
+            - name: UPLOAD_LOCATION
+              value: "gcp"
+            - name: DUMP_ENABLED
+              value: "false"
+            - name: DUMP_PATH
+              value: "/output/submission_dump.sql"
+            - name: DUMP_READY_FILE
+              value: "/output/.dump_ready"
+            - name: MIG_LOG
+              value: "/output/migration.log"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eval-secrets
+                  key: POSTGRES_PASSWORD
+            - name: GCP_CREDENTIALS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: eval-secrets
+                  key: GCP_CREDENTIALS_JSON
+            - name: GCP_BUCKET
+              value: "db-baseline"
+            - name: BASELINE_DUMP_URL
+              value: "https://storage.googleapis.com/db-baseline/job-20250929-040725-a65cffd1/db_dump.sql"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 800Mi
+            limits:
+              cpu: 900m
+              memory: 1200Mi
+  backoffLimit: 3

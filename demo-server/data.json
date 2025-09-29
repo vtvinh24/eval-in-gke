@@ -46,7 +46,7 @@
       "constraints": {
         "database": "PostgreSQL 14",
         "dataset": "events table ~100M rows; other tables up to ~120M rows",
-        "hardware": "8 vCPU, 32GB RAM, 1TB SSD",
+        "hardware": "8 vCPU, 32GB RAM, 1TB SSD (mocked: runs on GKE e2-small with 2 vCPU, 4GB RAM)",
         "migrationTime": "≤30 minutes",
         "queryTimeout": "4s target, 10s max",
         "auxiliaryStorage": "≤30% extra over base DB"

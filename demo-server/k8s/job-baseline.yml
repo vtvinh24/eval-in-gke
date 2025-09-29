@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eval-baseline-{JOB_ID}
+  namespace: eval-system
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: baseline-evaluator
+          image: us-docker.pkg.dev/hackathon-demo-473203/eval/eval-db:latest
+          env:
+            - name: JOB_TYPE
+              value: "baseline"
+            - name: INIT_MODE
+              value: "CREATE"
+            - name: USERS_COUNT
+              value: "{USERS_COUNT}"
+            - name: DEVICES_COUNT
+              value: "{DEVICES_COUNT}"
+            - name: EVENTS_COUNT
+              value: "{EVENTS_COUNT}"
+            - name: JOB_ID
+              value: "{JOB_ID}"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "eval_db"
+            - name: POSTGRES_HOST
+              value: "localhost"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: DB_PORT
+              value: "5432"
+            - name: TIMEOUT
+              value: "10000"
+            - name: EXEC_PER_QUERY
+              value: "5"
+            - name: EXEC_INTERVAL
+              value: "1000"
+            - name: EXEC_INTERVAL_Q
+              value: "2000"
+            - name: EXEC_TIMEOUT
+              value: "60000"
+            - name: OUT_DIR
+              value: "/output"
+            - name: INIT_WAIT_TIMEOUT
+              value: "300"
+            - name: UPLOAD_ENABLED
+              value: "true"
+            - name: UPLOAD_LOCATION
+              value: "gcp"
+            - name: DUMP_ENABLED
+              value: "true"
+            - name: DUMP_PATH
+              value: "/output/baseline_dump.sql"
+            - name: DUMP_READY_FILE
+              value: "/output/.dump_ready"
+            - name: BASELINE_MARKER
+              value: "/output/baseline_done"
+            - name: SCHEMA_SQL
+              value: "/sql-templates/init-db.sql"
+            - name: MIG_LOG
+              value: "/output/migration.log"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eval-secrets
+                  key: POSTGRES_PASSWORD
+            - name: GCP_CREDENTIALS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: eval-secrets
+                  key: GCP_CREDENTIALS_JSON
+            - name: GCP_BUCKET
+              value: "db-baseline"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 800Mi
+            limits:
+              cpu: 900m
+              memory: 1200Mi
+  backoffLimit: 3
