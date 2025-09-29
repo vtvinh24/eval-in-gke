@@ -73,16 +73,16 @@ create_gke_cluster() {
     if gcloud container clusters describe "$CLUSTER" --zone="$ZONE" &>/dev/null; then
         echo -e "${YELLOW}GKE cluster '$CLUSTER' already exists$NC"
     else
-        echo "Creating GKE cluster with e2-micro nodes..."
+        echo "Creating GKE cluster with e2-small nodes..."
         gcloud container clusters create "$CLUSTER" \
             --zone="$ZONE" \
-            --machine-type=e2-micro \
+            --machine-type=e2-small \
             --num-nodes=3 \
             --enable-autorepair \
             --enable-autoupgrade \
             --enable-autoscaling \
             --min-nodes=1 \
-            --max-nodes=5 \
+            --max-nodes=2 \
             --workload-pool="${PROJECT_ID}.svc.id.goog" \
             --disk-size=20GB \
             --disk-type=pd-standard \
@@ -254,13 +254,43 @@ test_deployment() {
     echo "Creating test job: $JOB_NAME"
     kubectl apply -f "/tmp/${JOB_NAME}.yml"
     
-    # Wait a moment and check status
-    sleep 10
-    echo "Job status:"
+    # Wait for job to be created and show initial status
+    echo "Waiting for job to be created..."
+    local max_wait=60
+    local wait_time=0
+    while ! kubectl get job "$JOB_NAME" -n eval-system &>/dev/null; do
+        if [ $wait_time -ge $max_wait ]; then
+            echo -e "${RED}ERROR: Job creation timed out after ${max_wait}s$NC"
+            return 1
+        fi
+        sleep 2
+        wait_time=$((wait_time + 2))
+        echo -n "."
+    done
+    echo ""
+    
+    echo "Job created successfully. Current status:"
     kubectl get job "$JOB_NAME" -n eval-system
+    
+    echo "Waiting for pod to be scheduled..."
+    wait_time=0
+    while ! kubectl get pods -n eval-system -l job-name="$JOB_NAME" --no-headers 2>/dev/null | grep -q .; do
+        if [ $wait_time -ge $max_wait ]; then
+            echo -e "${YELLOW}WARNING: Pod scheduling timed out after ${max_wait}s$NC"
+            break
+        fi
+        sleep 2
+        wait_time=$((wait_time + 2))
+        echo -n "."
+    done
+    echo ""
     
     echo "Pod status:"
     kubectl get pods -n eval-system -l job-name="$JOB_NAME"
+    
+    # Show job status one more time
+    echo "Final job status:"
+    kubectl get job "$JOB_NAME" -n eval-system
     
     # Clean up test job
     echo "Cleaning up test job..."
