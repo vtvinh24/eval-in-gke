@@ -45,9 +45,10 @@ services:
       - EXEC_INTERVAL_Q=${EXEC_INTERVAL_Q}
       - EXEC_TIMEOUT=${EXEC_TIMEOUT}
       - OUT_DIR=${OUT_DIR}
-      # --- Dumping and GCP upload ---
+      # --- Output upload and dumping ---
+      - UPLOAD_ENABLED=${UPLOAD_ENABLED}
+      - UPLOAD_LOCATION=${UPLOAD_LOCATION}
       - DUMP_ENABLED=${DUMP_ENABLED}
-      - DUMP_LOCATION=${DUMP_LOCATION}
       - GCP_BUCKET=${GCP_BUCKET}
       - GCP_CREDENTIALS_JSON=${GCP_CREDENTIALS_JSON}
       - DUMP_PATH=${DUMP_PATH}
@@ -88,9 +89,10 @@ services:
       - EXEC_TIMEOUT=${EXEC_TIMEOUT}
       - OUT_DIR=${OUT_DIR}
       - QUERIES_DIR=${QUERIES_DIR}
-      # --- Dumping settings ---
+      # --- Output upload and dumping ---
+      - UPLOAD_ENABLED=${UPLOAD_ENABLED}
+      - UPLOAD_LOCATION=${UPLOAD_LOCATION}
       - DUMP_ENABLED=${DUMP_ENABLED}
-      - DUMP_LOCATION=${DUMP_LOCATION}
       - DUMP_PATH=${DUMP_PATH}
       - DUMP_READY_FILE=${DUMP_READY_FILE}
       - SUBMISSION_MARKER=${SUBMISSION_MARKER}
@@ -137,8 +139,9 @@ services:
       - EXEC_INTERVAL_Q=${EXEC_INTERVAL_Q}
       - EXEC_TIMEOUT=${EXEC_TIMEOUT}
       - OUT_DIR=${OUT_DIR}
+      - UPLOAD_ENABLED=${UPLOAD_ENABLED}
+      - UPLOAD_LOCATION=${UPLOAD_LOCATION}
       - DUMP_ENABLED=${DUMP_ENABLED}
-      - DUMP_LOCATION=${DUMP_LOCATION}
       - DUMP_PATH=${DUMP_PATH}
       - DUMP_READY_FILE=${DUMP_READY_FILE}
       - GCP_BUCKET=${GCP_BUCKET}

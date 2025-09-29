@@ -31,6 +31,12 @@ spec:
               value: "/submission"
             - name: JOB_ID
               value: "{JOB_ID}"
+            - name: UPLOAD_ENABLED
+              value: "true"
+            - name: UPLOAD_LOCATION
+              value: "gcp"
+            - name: DUMP_ENABLED
+              value: "false"
           envFrom:
             - configMapRef:
                 name: eval-config

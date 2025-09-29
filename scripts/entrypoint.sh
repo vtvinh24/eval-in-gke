@@ -94,41 +94,62 @@ if [[ "$INIT_MODE" != "CREATE" && "$INIT_MODE" != "LOAD" ]]; then
   exit 1
 fi
 
-# Validate DUMP_ENABLED (REQUIRED)
-if [[ -z "${DUMP_ENABLED:-}" ]]; then
-  echo "ERROR: DUMP_ENABLED is required but not set (must be true or false)" >&2
+# Validate UPLOAD_ENABLED (defaults based on mode)
+if [[ -z "${UPLOAD_ENABLED:-}" ]]; then
+  if [[ "$INIT_MODE" == "CREATE" ]]; then
+    export UPLOAD_ENABLED="true"
+    echo "UPLOAD_ENABLED defaulted to 'true' for baseline mode"
+  else
+    export UPLOAD_ENABLED="true"
+    echo "UPLOAD_ENABLED defaulted to 'true' for submission mode"
+  fi
+fi
+
+if [[ "$UPLOAD_ENABLED" != "true" && "$UPLOAD_ENABLED" != "false" ]]; then
+  echo "ERROR: UPLOAD_ENABLED must be 'true' or 'false', got '$UPLOAD_ENABLED'" >&2
   exit 1
+fi
+
+# Validate UPLOAD_LOCATION if upload is enabled
+if [[ "$UPLOAD_ENABLED" == "true" ]]; then
+  if [[ -z "${UPLOAD_LOCATION:-}" ]]; then
+    export UPLOAD_LOCATION="gcp"
+    echo "UPLOAD_LOCATION defaulted to 'gcp'"
+  fi
+  
+  if [[ "$UPLOAD_LOCATION" != "local" && "$UPLOAD_LOCATION" != "gcp" ]]; then
+    echo "ERROR: UPLOAD_LOCATION must be 'local' or 'gcp', got '$UPLOAD_LOCATION'" >&2
+    exit 1
+  fi
+  
+  # Validate GCP settings if using GCP upload location
+  if [[ "$UPLOAD_LOCATION" == "gcp" ]]; then
+    if [[ -z "${GCP_BUCKET:-}" ]]; then
+      echo "ERROR: GCP_BUCKET is required when UPLOAD_LOCATION=gcp" >&2
+      exit 1
+    fi
+    
+    if [[ -z "${GCP_CREDENTIALS_JSON:-}" ]]; then
+      echo "ERROR: GCP_CREDENTIALS_JSON is required when UPLOAD_LOCATION=gcp" >&2
+      exit 1
+    fi
+  fi
+fi
+
+# Set DUMP_ENABLED defaults based on mode (backward compatibility)
+if [[ -z "${DUMP_ENABLED:-}" ]]; then
+  if [[ "$INIT_MODE" == "CREATE" ]]; then
+    export DUMP_ENABLED="true"
+    echo "DUMP_ENABLED defaulted to 'true' for baseline mode"
+  else
+    export DUMP_ENABLED="false"
+    echo "DUMP_ENABLED defaulted to 'false' for submission mode"
+  fi
 fi
 
 if [[ "$DUMP_ENABLED" != "true" && "$DUMP_ENABLED" != "false" ]]; then
   echo "ERROR: DUMP_ENABLED must be 'true' or 'false', got '$DUMP_ENABLED'" >&2
   exit 1
-fi
-
-# Validate DUMP_LOCATION if dumping is enabled
-if [[ "$DUMP_ENABLED" == "true" ]]; then
-  if [[ -z "${DUMP_LOCATION:-}" ]]; then
-    echo "ERROR: DUMP_LOCATION is required when DUMP_ENABLED=true (must be local or gcp)" >&2
-    exit 1
-  fi
-  
-  if [[ "$DUMP_LOCATION" != "local" && "$DUMP_LOCATION" != "gcp" ]]; then
-    echo "ERROR: DUMP_LOCATION must be 'local' or 'gcp', got '$DUMP_LOCATION'" >&2
-    exit 1
-  fi
-  
-  # Validate GCP settings if using GCP dump location
-  if [[ "$DUMP_LOCATION" == "gcp" ]]; then
-    if [[ -z "${GCP_BUCKET:-}" ]]; then
-      echo "ERROR: GCP_BUCKET is required when DUMP_LOCATION=gcp" >&2
-      exit 1
-    fi
-    
-    if [[ -z "${GCP_CREDENTIALS_JSON:-}" ]]; then
-      echo "ERROR: GCP_CREDENTIALS_JSON is required when DUMP_LOCATION=gcp" >&2
-      exit 1
-    fi
-  fi
 fi
 
 # Validate mode-specific settings
@@ -213,12 +234,15 @@ for var in "${numeric_vars[@]}"; do
 done
 
 echo "✅ All environment variables validated successfully"
-echo "Mode: $INIT_MODE | Dump: $DUMP_ENABLED | Location: ${DUMP_LOCATION:-N/A}"
+echo "Mode: $INIT_MODE | Upload: $UPLOAD_ENABLED | Location: ${UPLOAD_LOCATION:-N/A} | Dump: $DUMP_ENABLED"
 
 # Export key parameters for child scripts
 export INIT_MODE
+export UPLOAD_ENABLED
+export UPLOAD_LOCATION
 export DUMP_ENABLED
 export REPO_URL
+export JOB_ID
 
 # Start the official postgres entrypoint in background to initialize DB and run server
 docker_entrypoint=/usr/local/bin/docker-entrypoint.sh
@@ -397,8 +421,8 @@ trap term_handler SIGTERM SIGINT
 
 echo "Query runs finished. Preparing results and DB dump..."
 
-# Dump DB using dump-db.sh script
-if [ "$DUMP_ENABLED" = "true" ]; then
+# Upload results and optionally create database dump using dump-db.sh script
+if [ "$UPLOAD_ENABLED" = "true" ] || [ "$DUMP_ENABLED" = "true" ]; then
   # Set dump path based on mode
   if [ "$INIT_MODE" = "CREATE" ]; then
     export DUMP_PATH=${DUMP_PATH:-/output/db_dump.sql}
@@ -406,7 +430,7 @@ if [ "$DUMP_ENABLED" = "true" ]; then
     export DUMP_PATH=${DUMP_PATH:-/output/submission_dump.sql}
   fi
   
-  export DUMP_LOCATION=${DUMP_LOCATION:-local}
+  # Run the enhanced upload script
   /usr/local/bin/dump-db.sh
 fi
 

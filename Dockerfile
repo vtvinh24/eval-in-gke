@@ -39,8 +39,9 @@ EXPOSE 5432
 # Default environment variables (can be overridden by docker-compose or k8s)
 ENV INIT_MODE=CREATE
 ENV SCHEMA_SQL=/sql-templates/init-db.sql
-ENV DUMP_ENABLED=true
-ENV DUMP_LOCATION=local
+ENV UPLOAD_ENABLED=""
+ENV UPLOAD_LOCATION=gcp
+ENV DUMP_ENABLED=""
 ENV REPO_URL=""
 ENV JOB_ID=""
 ENV API_CALLBACK_URL=""
