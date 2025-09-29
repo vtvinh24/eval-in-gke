@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Script to get the latest baseline dump URL from the db-baseline bucket
+# Script to get the latest baseline dump URL from the baseline bucket
 # Usage: ./get-latest-baseline.sh [specific_job_id]
 
-BUCKET_NAME="db-baseline"
+BUCKET_NAME="${BASELINE_BUCKET:-db-baseline}"
 
 # Function to authenticate with GCP if credentials are provided
 authenticate_gcp() {

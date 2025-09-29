@@ -78,6 +78,7 @@ services:
       # --- Baseline dump configuration (Optional - auto-discovery used if not provided) ---
       - BASELINE_DUMP_URL=${BASELINE_DUMP_URL:-}
       - BASELINE_JOB_ID=${BASELINE_JOB_ID:-}
+      - BASELINE_BUCKET=${BASELINE_BUCKET:-}
       # --- Initialization mode ---
       - INIT_MODE=LOAD
       # --- Entrypoint and migration ---
@@ -94,6 +95,8 @@ services:
       - UPLOAD_ENABLED=${UPLOAD_ENABLED}
       - UPLOAD_LOCATION=${UPLOAD_LOCATION}
       - DUMP_ENABLED=${DUMP_ENABLED}
+      - GCP_BUCKET=${GCP_BUCKET}
+      - GCP_CREDENTIALS_JSON=${GCP_CREDENTIALS_JSON}
       - DUMP_PATH=${DUMP_PATH}
       - DUMP_READY_FILE=${DUMP_READY_FILE}
       - SUBMISSION_MARKER=${SUBMISSION_MARKER}
